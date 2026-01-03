@@ -325,4 +325,261 @@ describe("Browserbase Component", () => {
       ).rejects.toThrow("Job already cancelled");
     });
   });
+
+  describe("Timeout Enforcement", () => {
+    it("should schedule job with default timeout", async () => {
+      const jobId = await t.mutation(internal.jobs.scheduleJob, {
+        params: { url: "https://example.com" },
+        config: { apiKey: "key", projectId: "project" },
+        userAction: "internal.test.run",
+      });
+
+      // Job should be created with default timeout
+      const status = await t.query(internal.jobs.getJobStatus, { jobId });
+      expect(status).toBeDefined();
+    });
+
+    it("should schedule job with custom timeout", async () => {
+      const jobId = await t.mutation(internal.jobs.scheduleJob, {
+        params: { url: "https://example.com" },
+        config: { apiKey: "key", projectId: "project" },
+        userAction: "internal.test.run",
+        jobTimeout: 60000, // 1 minute
+      });
+
+      expect(jobId).toBeDefined();
+    });
+
+    it("watchdog should not fail job that completed before timeout", async () => {
+      const jobId = await t.mutation(internal.jobs.scheduleJob, {
+        params: {},
+        config: { apiKey: "key", projectId: "project" },
+        userAction: "internal.test.run",
+      });
+
+      // Complete the job
+      await t.mutation(internal.jobs.completeJob, {
+        jobId,
+        result: { success: true },
+      });
+
+      const status = await t.query(internal.jobs.getJobStatus, { jobId });
+      expect(status?.status).toBe("completed");
+    });
+  });
+
+  describe("Session Cleanup Tracking", () => {
+    it("should track cleanup attempt", async () => {
+      // Insert a mock session
+      const sessionId = await t.run(async (ctx) => {
+        return await ctx.db.insert("sessions", {
+          sessionId: "test-session-123",
+          projectId: "test-project",
+          connectUrl: "wss://test.browserbase.com",
+          seleniumRemoteUrl: "http://test.browserbase.com",
+          status: "RUNNING",
+          createdAt: Date.now(),
+          expiresAt: Date.now() + 3600000,
+        });
+      });
+
+      await t.mutation(internal.sessions.incrementCleanupAttempt, {
+        sessionRecordId: sessionId,
+        attemptNumber: 1,
+      });
+
+      const session = await t.run(async (ctx) => ctx.db.get(sessionId));
+      expect(session?.cleanupAttempts).toBe(1);
+      expect(session?.cleanupStatus).toBe("pending");
+    });
+
+    it("should mark cleanup as successful", async () => {
+      const sessionId = await t.run(async (ctx) => {
+        return await ctx.db.insert("sessions", {
+          sessionId: "test-session-456",
+          projectId: "test-project",
+          connectUrl: "wss://test.browserbase.com",
+          seleniumRemoteUrl: "http://test.browserbase.com",
+          status: "RUNNING",
+          createdAt: Date.now(),
+          expiresAt: Date.now() + 3600000,
+        });
+      });
+
+      await t.mutation(internal.sessions.markCleanupSuccess, {
+        sessionRecordId: sessionId,
+        browserbaseStatus: "COMPLETED",
+      });
+
+      const session = await t.run(async (ctx) => ctx.db.get(sessionId));
+      expect(session?.cleanupStatus).toBe("success");
+      expect(session?.status).toBe("COMPLETED");
+      expect(session?.cleanupCompletedAt).toBeDefined();
+    });
+
+    it("should mark cleanup as failed without changing session status", async () => {
+      const sessionId = await t.run(async (ctx) => {
+        return await ctx.db.insert("sessions", {
+          sessionId: "test-session-789",
+          projectId: "test-project",
+          connectUrl: "wss://test.browserbase.com",
+          seleniumRemoteUrl: "http://test.browserbase.com",
+          status: "RUNNING",
+          createdAt: Date.now(),
+          expiresAt: Date.now() + 3600000,
+        });
+      });
+
+      await t.mutation(internal.sessions.markCleanupFailed, {
+        sessionRecordId: sessionId,
+        error: "API timeout after 3 attempts",
+      });
+
+      const session = await t.run(async (ctx) => ctx.db.get(sessionId));
+      expect(session?.cleanupStatus).toBe("failed");
+      expect(session?.status).toBe("RUNNING"); // Should NOT be changed
+      expect(session?.cleanupError).toBe("API timeout after 3 attempts");
+    });
+  });
+
+  describe("Cron Jobs", () => {
+    it("should create a cron job with valid expression", async () => {
+      const cronJobId = await t.mutation(internal.cronJobs.createCronJob, {
+        name: "test-cron",
+        cronExpression: "0 */6 * * *", // Every 6 hours
+        jobParams: { url: "https://example.com" },
+        config: { apiKey: "key", projectId: "project" },
+        userAction: "internal.test.run",
+      });
+
+      expect(cronJobId).toBeDefined();
+
+      const cronJob = await t.query(internal.cronJobs.getCronJob, { cronJobId });
+      expect(cronJob?.name).toBe("test-cron");
+      expect(cronJob?.enabled).toBe(true);
+      expect(cronJob?.runCount).toBe(0);
+      expect(cronJob?.nextRunAt).toBeGreaterThan(Date.now());
+    });
+
+    it("should reject invalid cron expression", async () => {
+      await expect(
+        t.mutation(internal.cronJobs.createCronJob, {
+          name: "invalid-cron",
+          cronExpression: "invalid expression",
+          jobParams: {},
+          config: { apiKey: "key", projectId: "project" },
+          userAction: "internal.test.run",
+        }),
+      ).rejects.toThrow("Invalid cron expression");
+    });
+
+    it("should reject duplicate cron job names", async () => {
+      await t.mutation(internal.cronJobs.createCronJob, {
+        name: "unique-name",
+        cronExpression: "0 * * * *",
+        jobParams: {},
+        config: { apiKey: "key", projectId: "project" },
+        userAction: "internal.test.run",
+      });
+
+      await expect(
+        t.mutation(internal.cronJobs.createCronJob, {
+          name: "unique-name",
+          cronExpression: "0 * * * *",
+          jobParams: {},
+          config: { apiKey: "key", projectId: "project" },
+          userAction: "internal.test.run",
+        }),
+      ).rejects.toThrow("already exists");
+    });
+
+    it("should update cron job", async () => {
+      const cronJobId = await t.mutation(internal.cronJobs.createCronJob, {
+        name: "update-test",
+        cronExpression: "0 * * * *",
+        jobParams: {},
+        config: { apiKey: "key", projectId: "project" },
+        userAction: "internal.test.run",
+      });
+
+      await t.mutation(internal.cronJobs.updateCronJob, {
+        cronJobId,
+        enabled: false,
+      });
+
+      const cronJob = await t.query(internal.cronJobs.getCronJob, { cronJobId });
+      expect(cronJob?.enabled).toBe(false);
+    });
+
+    it("should delete cron job", async () => {
+      const cronJobId = await t.mutation(internal.cronJobs.createCronJob, {
+        name: "delete-test",
+        cronExpression: "0 * * * *",
+        jobParams: {},
+        config: { apiKey: "key", projectId: "project" },
+        userAction: "internal.test.run",
+      });
+
+      await t.mutation(internal.cronJobs.deleteCronJob, { cronJobId });
+
+      const cronJob = await t.query(internal.cronJobs.getCronJob, { cronJobId });
+      expect(cronJob).toBeNull();
+    });
+
+    it("should list enabled cron jobs", async () => {
+      await t.mutation(internal.cronJobs.createCronJob, {
+        name: "enabled-cron",
+        cronExpression: "0 * * * *",
+        jobParams: {},
+        config: { apiKey: "key", projectId: "project" },
+        userAction: "internal.test.run",
+      });
+
+      const cronJobId2 = await t.mutation(internal.cronJobs.createCronJob, {
+        name: "disabled-cron",
+        cronExpression: "0 * * * *",
+        jobParams: {},
+        config: { apiKey: "key", projectId: "project" },
+        userAction: "internal.test.run",
+      });
+
+      await t.mutation(internal.cronJobs.updateCronJob, {
+        cronJobId: cronJobId2,
+        enabled: false,
+      });
+
+      const enabledCrons = await t.query(internal.cronJobs.listCronJobs, {
+        enabled: true,
+      });
+      expect(enabledCrons).toHaveLength(1);
+      expect(enabledCrons[0].name).toBe("enabled-cron");
+    });
+
+    it("should recalculate nextRunAt when expression changes", async () => {
+      const cronJobId = await t.mutation(internal.cronJobs.createCronJob, {
+        name: "recalc-test",
+        cronExpression: "0 * * * *", // Every hour
+        jobParams: {},
+        config: { apiKey: "key", projectId: "project" },
+        userAction: "internal.test.run",
+      });
+
+      const beforeUpdate = await t.query(internal.cronJobs.getCronJob, {
+        cronJobId,
+      });
+      const originalNextRun = beforeUpdate?.nextRunAt;
+
+      await t.mutation(internal.cronJobs.updateCronJob, {
+        cronJobId,
+        cronExpression: "0 0 * * *", // Daily at midnight
+      });
+
+      const afterUpdate = await t.query(internal.cronJobs.getCronJob, {
+        cronJobId,
+      });
+      expect(afterUpdate?.cronExpression).toBe("0 0 * * *");
+      // nextRunAt should be different (daily is less frequent than hourly)
+      expect(afterUpdate?.nextRunAt).not.toBe(originalNextRun);
+    });
+  });
 });

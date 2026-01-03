@@ -16,6 +16,9 @@ browsers.
 - **Session Management**: Automatic Browserbase session creation and cleanup
 - **Progress Tracking**: Reactive queries for real-time job status
 - **Webhook Support**: Get notified when jobs complete
+- **Cron Jobs**: Schedule recurring automation with cron expressions
+- **Timeout Enforcement**: Automatic job timeout with configurable duration
+- **Reliable Cleanup**: Session cleanup with retry logic and failure tracking
 
 ## Architecture
 
@@ -201,6 +204,7 @@ Schedule a browser automation job.
   - `proxies?: boolean` - Enable residential proxies
 - `maxRetries?: number` - Number of retry attempts (default: 0)
 - `webhookUrl?: string` - Optional webhook URL for job completion
+- `jobTimeout?: number` - Job timeout in milliseconds (default: 300000 / 5 minutes)
 
 **Returns:** `jobId: Id<"browserbase:jobs">`
 
@@ -242,6 +246,40 @@ List jobs with optional filtering.
 ### `api.browserbase.cancelJob({ jobId })`
 
 Cancel a running job.
+
+### Cron Job APIs
+
+**`api.browserbase.createCronJob(args)`**
+
+Create a recurring automation job.
+
+**Arguments:**
+
+- `name: string` - Unique name for the cron job
+- `cronExpression: string` - Cron expression (e.g., "0 */6 * * *" for every 6 hours)
+- `jobParams: any` - Parameters passed to each job instance
+- `config: { apiKey: string, projectId: string }` - Browserbase credentials
+- `userAction: string` - Reference to your action
+- `sessionOptions?: object` - Optional session configuration
+- `webhookUrl?: string` - Optional webhook for each job completion
+
+**Returns:** `cronJobId: Id<"browserbase:cronJobs">`
+
+**`api.browserbase.updateCronJob({ cronJobId, ...updates })`**
+
+Update a cron job. Can update: `enabled`, `cronExpression`, `jobParams`, `sessionOptions`, `webhookUrl`.
+
+**`api.browserbase.deleteCronJob({ cronJobId })`**
+
+Delete a cron job.
+
+**`api.browserbase.getCronJob({ cronJobId })`**
+
+Get cron job details.
+
+**`api.browserbase.listCronJobs({ enabled?, limit? })`**
+
+List cron jobs with optional filtering.
 
 ### Internal APIs (for user actions)
 
@@ -483,6 +521,49 @@ const { jobId } = await ctx.runMutation(api.browserbase.scheduleJob, {
 // Attempt 3: After 4s
 // Attempt 4: After 8s
 ```
+
+### 6. Cron Jobs (Recurring Automation)
+
+Schedule browser automation to run on a recurring basis:
+
+```typescript
+// Create a cron job to scrape HackerNews every 6 hours
+const cronJobId = await ctx.runMutation(api.browserbase.createCronJob, {
+  name: "hackernews-scraper",
+  cronExpression: "0 */6 * * *", // Every 6 hours
+  jobParams: { maxStories: 10 },
+  config: { apiKey, projectId },
+  userAction: "internal.browserAutomation.scrapeHackerNewsAction",
+  webhookUrl: "https://myapp.com/webhook/cron-complete",
+});
+
+// Disable temporarily
+await ctx.runMutation(api.browserbase.updateCronJob, {
+  cronJobId,
+  enabled: false,
+});
+
+// List all cron jobs
+const cronJobs = await ctx.runQuery(api.browserbase.listCronJobs, {});
+```
+
+The cron executor runs every minute and spawns job instances for due cron jobs.
+
+### 7. Job Timeout Protection
+
+Jobs have automatic timeout protection to prevent runaway processes:
+
+```typescript
+// Schedule with custom timeout (10 minutes)
+const jobId = await ctx.runMutation(api.browserbase.scheduleJob, {
+  params: { url: "https://slow-site.com" },
+  config: { apiKey, projectId },
+  userAction: "internal.browserAutomation.scrapePageAction",
+  jobTimeout: 10 * 60 * 1000, // 10 minutes (default is 5 minutes)
+});
+```
+
+If a job exceeds its timeout, it will be automatically marked as failed with error "Job timed out after X seconds".
 
 See the [example directory](./example) for complete, runnable code and
 [TEST_RESULTS.md](./TEST_RESULTS.md) for test documentation.

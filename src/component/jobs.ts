@@ -37,10 +37,12 @@ export const scheduleJob = mutation({
     callbackFunction: v.optional(v.string()),
     maxRetries: v.optional(v.number()),
     scheduledFor: v.optional(v.number()),
+    jobTimeout: v.optional(v.number()), // Timeout in milliseconds (default: 5 minutes)
   },
   returns: v.id("jobs"),
   handler: async (ctx, args) => {
     const now = Date.now();
+    const DEFAULT_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
     // Insert job record
     const jobId = await ctx.db.insert("jobs", {
@@ -54,6 +56,7 @@ export const scheduleJob = mutation({
       scheduledFor: args.scheduledFor,
       retryCount: 0,
       maxRetries: args.maxRetries ?? 0,
+      jobTimeout: args.jobTimeout ?? DEFAULT_TIMEOUT,
       createdAt: now,
     });
 
@@ -247,6 +250,7 @@ export const getJobForExecution = internalQuery({
 
 /**
  * Link session to job (internal)
+ * Also schedules timeout watchdog
  */
 export const linkSession = internalMutation({
   args: {
@@ -254,10 +258,24 @@ export const linkSession = internalMutation({
     sessionId: v.id("sessions"),
   },
   handler: async (ctx, { jobId, sessionId }) => {
+    const job = await ctx.db.get(jobId);
+    if (!job) throw new Error("Job not found");
+
+    const now = Date.now();
+    const DEFAULT_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+    const timeout = job.jobTimeout ?? DEFAULT_TIMEOUT;
+
+    // Schedule watchdog to check after timeout period
+    await ctx.scheduler.runAfter(timeout, internal.timeout.watchdog, {
+      jobId,
+      startedAt: now,
+      timeout,
+    });
+
     await ctx.db.patch(jobId, {
       sessionId,
       status: "running",
-      startedAt: Date.now(),
+      startedAt: now,
     });
   },
 });

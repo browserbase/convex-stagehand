@@ -59,6 +59,7 @@ export interface ScheduleJobOptions {
   callbackFunction?: string;
   maxRetries?: number;
   scheduledFor?: number;
+  jobTimeout?: number; // Timeout in milliseconds (default: 5 minutes / 300000ms)
 }
 
 /**
@@ -103,6 +104,35 @@ export interface JobSummary {
   createdAt: number;
   startedAt?: number;
   completedAt?: number;
+}
+
+/**
+ * Cron job options for creating recurring automation
+ */
+export interface CronJobOptions {
+  name: string;
+  cronExpression: string;
+  jobParams: any;
+  userAction: string;
+  sessionOptions?: SessionOptions;
+  webhookUrl?: string;
+  callbackFunction?: string;
+}
+
+/**
+ * Cron job summary
+ */
+export interface CronJobSummary {
+  id: string;
+  name: string;
+  cronExpression: string;
+  enabled: boolean;
+  userAction: string;
+  webhookUrl?: string;
+  lastRunAt?: number;
+  nextRunAt: number;
+  runCount: number;
+  createdAt: number;
 }
 
 /**
@@ -233,5 +263,134 @@ export class Browserbase {
    */
   async cancelJob(ctx: MutationCtx, jobId: string): Promise<void> {
     await ctx.runMutation(this.component.cancelJob, { jobId });
+  }
+
+  // ========================================
+  // Cron Job Management
+  // ========================================
+
+  /**
+   * Create a new cron job for recurring automation
+   *
+   * @param ctx - Convex mutation context
+   * @param options - Cron job options
+   * @param config - Optional config override (uses constructor config if not provided)
+   * @returns Cron job ID
+   *
+   * @example
+   * ```typescript
+   * const cronJobId = await browserbase.createCronJob(ctx, {
+   *   name: "hackernews-scraper",
+   *   cronExpression: "0 *\/6 * * *", // Every 6 hours
+   *   jobParams: { maxStories: 10 },
+   *   userAction: "internal.browserAutomation.scrapeHackerNewsAction",
+   * });
+   * ```
+   */
+  async createCronJob(
+    ctx: MutationCtx,
+    options: CronJobOptions,
+    config?: BrowserbaseConfig,
+  ): Promise<string> {
+    const finalConfig = config ?? this.config;
+    if (!finalConfig) {
+      throw new Error(
+        "Browserbase config required. Provide config in constructor or createCronJob call.",
+      );
+    }
+
+    return await ctx.runMutation(this.component.createCronJob, {
+      ...options,
+      config: finalConfig,
+    });
+  }
+
+  /**
+   * Update a cron job
+   *
+   * @param ctx - Convex mutation context
+   * @param cronJobId - Cron job ID to update
+   * @param updates - Fields to update
+   *
+   * @example
+   * ```typescript
+   * // Disable a cron job
+   * await browserbase.updateCronJob(ctx, cronJobId, { enabled: false });
+   *
+   * // Change schedule
+   * await browserbase.updateCronJob(ctx, cronJobId, {
+   *   cronExpression: "0 0 * * *", // Daily at midnight
+   * });
+   * ```
+   */
+  async updateCronJob(
+    ctx: MutationCtx,
+    cronJobId: string,
+    updates: Partial<Omit<CronJobOptions, "name" | "userAction">> & {
+      enabled?: boolean;
+    },
+  ): Promise<void> {
+    await ctx.runMutation(this.component.updateCronJob, {
+      cronJobId,
+      ...updates,
+    });
+  }
+
+  /**
+   * Delete a cron job
+   *
+   * @param ctx - Convex mutation context
+   * @param cronJobId - Cron job ID to delete
+   *
+   * @example
+   * ```typescript
+   * await browserbase.deleteCronJob(ctx, cronJobId);
+   * ```
+   */
+  async deleteCronJob(ctx: MutationCtx, cronJobId: string): Promise<void> {
+    await ctx.runMutation(this.component.deleteCronJob, { cronJobId });
+  }
+
+  /**
+   * Get cron job details
+   *
+   * @param ctx - Convex query context
+   * @param cronJobId - Cron job ID to query
+   * @returns Cron job summary or null if not found
+   *
+   * @example
+   * ```typescript
+   * const cronJob = await browserbase.getCronJob(ctx, cronJobId);
+   * console.log("Next run:", new Date(cronJob?.nextRunAt));
+   * ```
+   */
+  async getCronJob(
+    ctx: QueryCtx,
+    cronJobId: string,
+  ): Promise<CronJobSummary | null> {
+    return await ctx.runQuery(this.component.getCronJob, { cronJobId });
+  }
+
+  /**
+   * List cron jobs
+   *
+   * @param ctx - Convex query context
+   * @param options - Filter options
+   * @returns Array of cron job summaries
+   *
+   * @example
+   * ```typescript
+   * // Get all enabled cron jobs
+   * const enabled = await browserbase.listCronJobs(ctx, { enabled: true });
+   *
+   * // Get all cron jobs
+   * const all = await browserbase.listCronJobs(ctx);
+   * ```
+   */
+  async listCronJobs(
+    ctx: QueryCtx,
+    options?: { enabled?: boolean; limit?: number },
+  ): Promise<CronJobSummary[]> {
+    return await ctx.runQuery(this.component.listCronJobs, options ?? {});
   }
 }

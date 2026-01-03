@@ -33,6 +33,18 @@ export default defineSchema({
     avgCpuUsage: v.optional(v.number()),
     memoryUsage: v.optional(v.number()),
     proxyBytes: v.optional(v.number()),
+
+    // Cleanup tracking
+    cleanupAttempts: v.optional(v.number()),
+    cleanupStatus: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("success"),
+        v.literal("failed"),
+      ),
+    ),
+    cleanupError: v.optional(v.string()),
+    cleanupCompletedAt: v.optional(v.number()),
   })
     .index("by_status", ["status"])
     .index("by_sessionId", ["sessionId"])
@@ -88,7 +100,8 @@ export default defineSchema({
 
     // Scheduling
     scheduledFor: v.optional(v.number()), // Unix timestamp for delayed execution
-    parentJobId: v.optional(v.id("jobs")), // For cron job instances
+    parentJobId: v.optional(v.id("jobs")), // For retry chains
+    cronJobId: v.optional(v.id("cronJobs")), // For cron job instances
 
     // Metrics tracking
     sessionDuration: v.optional(v.number()), // Milliseconds
@@ -97,6 +110,9 @@ export default defineSchema({
     // Retry configuration
     retryCount: v.number(),
     maxRetries: v.number(),
+
+    // Timeout configuration
+    jobTimeout: v.optional(v.number()), // Timeout in milliseconds (default: 5 minutes)
 
     // Timestamps
     createdAt: v.number(),
@@ -107,6 +123,7 @@ export default defineSchema({
     .index("by_sessionId", ["sessionId"])
     .index("by_scheduled", ["scheduledFor"])
     .index("by_parent", ["parentJobId"])
+    .index("by_cronJob", ["cronJobId"])
     .index("by_created", ["createdAt"]),
 
   // Recurring automation definitions (cron jobs)

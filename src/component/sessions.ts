@@ -176,6 +176,7 @@ export const updateSession = internalMutation({
 /**
  * Cleanup session (REQUEST_RELEASE)
  * Called when job finishes or times out
+ * Implements retry logic with exponential backoff (max 3 attempts)
  */
 export const cleanupSession = internalAction({
   args: {
@@ -184,8 +185,11 @@ export const cleanupSession = internalAction({
       apiKey: v.string(),
       projectId: v.string(),
     }),
+    attemptNumber: v.optional(v.number()),
   },
-  handler: async (ctx, { sessionRecordId, config }) => {
+  handler: async (ctx, { sessionRecordId, config, attemptNumber = 1 }) => {
+    const MAX_ATTEMPTS = 3;
+
     // Get session from database
     const session = await ctx.runQuery(internal.sessions.getSession, {
       sessionRecordId,
@@ -196,13 +200,34 @@ export const cleanupSession = internalAction({
       return;
     }
 
-    // Skip if already completed
-    if (session.status === "COMPLETED" || session.status === "TIMED_OUT") {
+    // Skip if already completed successfully
+    if (session.cleanupStatus === "success") {
       console.log(
-        `Session ${session.sessionId} already ${session.status}, skipping cleanup`,
+        `Session ${session.sessionId} already cleaned up, skipping`,
       );
       return;
     }
+
+    // Skip if Browserbase already marked it completed/timed out
+    if (session.status === "COMPLETED" || session.status === "TIMED_OUT") {
+      console.log(
+        `Session ${session.sessionId} already ${session.status} in Browserbase, marking cleanup success`,
+      );
+      await ctx.runMutation(internal.sessions.markCleanupSuccess, {
+        sessionRecordId,
+      });
+      return;
+    }
+
+    console.log(
+      `[Cleanup] Attempting cleanup for session ${session.sessionId} (attempt ${attemptNumber}/${MAX_ATTEMPTS})`,
+    );
+
+    // Record attempt start
+    await ctx.runMutation(internal.sessions.incrementCleanupAttempt, {
+      sessionRecordId,
+      attemptNumber,
+    });
 
     try {
       // Call Browserbase API to REQUEST_RELEASE
@@ -211,25 +236,142 @@ export const cleanupSession = internalAction({
         session.sessionId,
       );
 
-      // Update database
-      await ctx.runMutation(internal.sessions.updateSession, {
+      // Update database - cleanup succeeded
+      await ctx.runMutation(internal.sessions.markCleanupSuccess, {
         sessionRecordId,
-        status: bbSession.status,
-        endedAt: Date.now(),
+        browserbaseStatus: bbSession.status,
       });
 
       console.log(`Session ${session.sessionId} cleaned up successfully`);
     } catch (error: any) {
       console.error(
-        `Failed to cleanup session ${session.sessionId}:`,
-        error.message,
+        `Failed to cleanup session ${session.sessionId} (attempt ${attemptNumber}): ${error.message}`,
       );
-      // Still mark as completed in database
-      await ctx.runMutation(internal.sessions.updateSession, {
+
+      // Record the error
+      await ctx.runMutation(internal.sessions.recordCleanupError, {
         sessionRecordId,
-        status: "COMPLETED",
-        endedAt: Date.now(),
+        error: error.message,
       });
+
+      // Retry with exponential backoff if under max attempts
+      if (attemptNumber < MAX_ATTEMPTS) {
+        const backoffMs = Math.pow(2, attemptNumber) * 1000; // 2s, 4s, 8s
+        console.log(
+          `Scheduling cleanup retry for session ${session.sessionId} in ${backoffMs}ms`,
+        );
+
+        await ctx.scheduler.runAfter(backoffMs, internal.sessions.cleanupSession, {
+          sessionRecordId,
+          config,
+          attemptNumber: attemptNumber + 1,
+        });
+      } else {
+        console.error(
+          `Cleanup failed after ${MAX_ATTEMPTS} attempts for session ${session.sessionId}`,
+        );
+
+        // Mark as permanently failed - do NOT mark session as COMPLETED
+        await ctx.runMutation(internal.sessions.markCleanupFailed, {
+          sessionRecordId,
+          error: `Failed after ${MAX_ATTEMPTS} attempts: ${error.message}`,
+        });
+      }
     }
+  },
+});
+
+/**
+ * Increment cleanup attempt counter
+ */
+export const incrementCleanupAttempt = internalMutation({
+  args: {
+    sessionRecordId: v.id("sessions"),
+    attemptNumber: v.number(),
+  },
+  handler: async (ctx, { sessionRecordId, attemptNumber }) => {
+    await ctx.db.patch(sessionRecordId, {
+      cleanupAttempts: attemptNumber,
+      cleanupStatus: "pending",
+    });
+  },
+});
+
+/**
+ * Mark cleanup as successful
+ */
+export const markCleanupSuccess = internalMutation({
+  args: {
+    sessionRecordId: v.id("sessions"),
+    browserbaseStatus: v.optional(
+      v.union(
+        v.literal("RUNNING"),
+        v.literal("ERROR"),
+        v.literal("TIMED_OUT"),
+        v.literal("COMPLETED"),
+      ),
+    ),
+  },
+  handler: async (ctx, { sessionRecordId, browserbaseStatus }) => {
+    await ctx.db.patch(sessionRecordId, {
+      status: browserbaseStatus ?? "COMPLETED",
+      cleanupStatus: "success",
+      cleanupCompletedAt: Date.now(),
+      endedAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Record cleanup error (during retries)
+ */
+export const recordCleanupError = internalMutation({
+  args: {
+    sessionRecordId: v.id("sessions"),
+    error: v.string(),
+  },
+  handler: async (ctx, { sessionRecordId, error }) => {
+    await ctx.db.patch(sessionRecordId, {
+      cleanupError: error,
+    });
+  },
+});
+
+/**
+ * Mark cleanup as permanently failed
+ */
+export const markCleanupFailed = internalMutation({
+  args: {
+    sessionRecordId: v.id("sessions"),
+    error: v.string(),
+  },
+  handler: async (ctx, { sessionRecordId, error }) => {
+    // Do NOT update status to COMPLETED - session may still be running in Browserbase
+    await ctx.db.patch(sessionRecordId, {
+      cleanupStatus: "failed",
+      cleanupError: error,
+    });
+  },
+});
+
+/**
+ * List sessions with failed cleanup (for monitoring/manual intervention)
+ */
+export const listFailedCleanups = internalQuery({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit }) => {
+    const sessions = await ctx.db
+      .query("sessions")
+      .filter((q) => q.eq(q.field("cleanupStatus"), "failed"))
+      .take(limit ?? 50);
+
+    return sessions.map((s) => ({
+      id: s._id,
+      sessionId: s.sessionId,
+      status: s.status,
+      cleanupAttempts: s.cleanupAttempts,
+      cleanupError: s.cleanupError,
+      createdAt: s.createdAt,
+    }));
   },
 });
