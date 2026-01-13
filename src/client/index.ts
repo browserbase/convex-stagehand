@@ -1,396 +1,264 @@
 /**
- * Client-side wrapper for the Browserbase component
+ * Stagehand Client
  *
- * Provides an ergonomic API for interacting with the Browserbase component
- * from your Convex app code.
+ * Type-safe wrapper for the Stagehand Convex component.
+ * Uses Zod schemas for extraction typing.
+ */
+
+import { zodToJsonSchema } from "zod-to-json-schema";
+import type { z } from "zod";
+import type {
+  GenericActionCtx,
+  GenericDataModel,
+  FunctionReference,
+} from "convex/server";
+
+// Re-export component type
+export type { ComponentApi } from "../component/_generated/component.js";
+import type { ComponentApi } from "../component/_generated/component.js";
+
+type ActionCtx = GenericActionCtx<GenericDataModel>;
+
+export interface StagehandConfig {
+  browserbaseApiKey: string;
+  browserbaseProjectId: string;
+  modelApiKey: string;
+  modelName?: string;
+}
+
+export interface ExtractOptions {
+  timeout?: number;
+  waitUntil?: "load" | "domcontentloaded" | "networkidle";
+}
+
+export interface ActOptions {
+  timeout?: number;
+  waitUntil?: "load" | "domcontentloaded" | "networkidle";
+}
+
+export interface ObserveOptions {
+  timeout?: number;
+  waitUntil?: "load" | "domcontentloaded" | "networkidle";
+}
+
+export interface WorkflowOptions {
+  timeout?: number;
+  waitUntil?: "load" | "domcontentloaded" | "networkidle";
+}
+
+export type WorkflowStep =
+  | { type: "navigate"; url: string }
+  | { type: "act"; action: string }
+  | { type: "extract"; instruction: string; schema: z.ZodType }
+  | { type: "observe"; instruction: string };
+
+export interface ObservedAction {
+  description: string;
+  selector: string;
+  method: string;
+  arguments?: string[];
+}
+
+export interface ActResult {
+  success: boolean;
+  message: string;
+  actionDescription: string;
+}
+
+export interface WorkflowResult {
+  results: any[];
+  finalResult: any;
+}
+
+/**
+ * Stagehand client for AI-powered browser automation.
  *
  * @example
  * ```typescript
- * // In your convex.config.ts
- * import browserbase from "@convex-dev/browserbase/convex.config";
- * app.use(browserbase, { name: "browserbase" });
- *
- * // In your mutations/queries
- * import { Browserbase } from "@convex-dev/browserbase";
+ * import { Stagehand } from "@convex-dev/stagehand";
  * import { components } from "./_generated/api";
  *
- * const browserbase = new Browserbase(components.browserbase, {
- *   apiKey: process.env.BROWSERBASE_API_KEY!,
- *   projectId: process.env.BROWSERBASE_PROJECT_ID!,
+ * const stagehand = new Stagehand(components.stagehand, {
+ *   browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
+ *   browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
+ *   modelApiKey: process.env.OPENAI_API_KEY!,
  * });
  *
- * // Schedule a job
- * const jobId = await browserbase.scheduleJob(ctx, {
- *   params: { url: "https://example.com" },
- *   userAction: "internal.browserAutomation.scrapePageAction",
+ * export const scrape = action({
+ *   handler: async (ctx) => {
+ *     return await stagehand.extract(ctx, {
+ *       url: "https://example.com",
+ *       instruction: "Extract all product names",
+ *       schema: z.object({ products: z.array(z.string()) }),
+ *     });
+ *   },
  * });
  * ```
  */
-
-import type { MutationCtx, QueryCtx } from "../component/_generated/server.js";
-import type { api } from "../component/_generated/api.js";
-
-/**
- * Browserbase configuration
- */
-export interface BrowserbaseConfig {
-  apiKey: string;
-  projectId: string;
-}
-
-/**
- * Session options for Browserbase
- */
-export interface SessionOptions {
-  timeout?: number;
-  keepAlive?: boolean;
-  region?: "us-west-2" | "us-east-1" | "eu-central-1" | "ap-southeast-1";
-  proxies?: boolean;
-}
-
-/**
- * Job scheduling options
- */
-export interface ScheduleJobOptions {
-  params: any;
-  userAction: string;
-  sessionOptions?: SessionOptions;
-  webhookUrl?: string;
-  callbackFunction?: string;
-  maxRetries?: number;
-  scheduledFor?: number;
-  jobTimeout?: number; // Timeout in milliseconds (default: 5 minutes / 300000ms)
-}
-
-/**
- * Job status
- */
-export type JobStatus =
-  | "pending"
-  | "queued"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
-
-/**
- * Job status result
- */
-export interface JobStatusResult {
-  id: string;
-  status: JobStatus;
-  result?: any;
-  error?: string;
-  retryCount: number;
-  maxRetries: number;
-  createdAt: number;
-  startedAt?: number;
-  completedAt?: number;
-  sessionDuration?: number;
-  session: {
-    connectUrl: string;
-    status: string;
-  } | null;
-}
-
-/**
- * Job summary
- */
-export interface JobSummary {
-  id: string;
-  status: JobStatus;
-  error?: string;
-  retryCount: number;
-  createdAt: number;
-  startedAt?: number;
-  completedAt?: number;
-}
-
-/**
- * Cron job options for creating recurring automation
- */
-export interface CronJobOptions {
-  name: string;
-  cronExpression: string;
-  jobParams: any;
-  userAction: string;
-  sessionOptions?: SessionOptions;
-  webhookUrl?: string;
-  callbackFunction?: string;
-}
-
-/**
- * Cron job summary
- */
-export interface CronJobSummary {
-  id: string;
-  name: string;
-  cronExpression: string;
-  enabled: boolean;
-  userAction: string;
-  webhookUrl?: string;
-  lastRunAt?: number;
-  nextRunAt: number;
-  runCount: number;
-  createdAt: number;
-}
-
-/**
- * Browserbase component client
- *
- * Wraps the component's public API with a cleaner interface.
- */
-export class Browserbase {
-  private component: typeof api.browserbase;
-  private config?: BrowserbaseConfig;
+export class Stagehand {
+  constructor(
+    private component: ComponentApi,
+    private config: StagehandConfig,
+  ) {}
 
   /**
-   * Create a new Browserbase client
+   * Extract structured data from a web page using AI.
    *
-   * @param component - The component reference from your generated API
-   * @param config - Optional default configuration (can be overridden per-job)
+   * @param ctx - Convex action context
+   * @param args - Extraction parameters
+   * @returns Extracted data matching the provided schema
    *
    * @example
    * ```typescript
-   * import { Browserbase } from "@convex-dev/browserbase";
-   * import { components } from "./_generated/api";
-   *
-   * // With default config (reads from environment)
-   * const browserbase = new Browserbase(components.browserbase, {
-   *   apiKey: process.env.BROWSERBASE_API_KEY!,
-   *   projectId: process.env.BROWSERBASE_PROJECT_ID!,
-   * });
-   *
-   * // Without default config (must provide config per-job)
-   * const browserbase = new Browserbase(components.browserbase);
-   * ```
-   */
-  constructor(component: typeof api.browserbase, config?: BrowserbaseConfig) {
-    this.component = component;
-    this.config = config;
-  }
-
-  /**
-   * Schedule a new browser automation job
-   *
-   * @param ctx - Convex mutation context
-   * @param options - Job options
-   * @param config - Optional config override (uses constructor config if not provided)
-   * @returns Job ID for tracking
-   *
-   * @example
-   * ```typescript
-   * const jobId = await browserbase.scheduleJob(ctx, {
-   *   params: { url: "https://example.com" },
-   *   userAction: "internal.browserAutomation.scrapePageAction",
-   *   maxRetries: 2,
+   * const data = await stagehand.extract(ctx, {
+   *   url: "https://news.ycombinator.com",
+   *   instruction: "Extract the top 5 stories with title and score",
+   *   schema: z.object({
+   *     stories: z.array(z.object({
+   *       title: z.string(),
+   *       score: z.string(),
+   *     }))
+   *   }),
    * });
    * ```
    */
-  async scheduleJob(
-    ctx: MutationCtx,
-    options: ScheduleJobOptions,
-    config?: BrowserbaseConfig,
-  ): Promise<string> {
-    const finalConfig = config ?? this.config;
-    if (!finalConfig) {
-      throw new Error(
-        "Browserbase config required. Provide config in constructor or scheduleJob call.",
-      );
-    }
-
-    return await ctx.runMutation(this.component.scheduleJob, {
-      ...options,
-      config: finalConfig,
-    });
-  }
-
-  /**
-   * Get job status (reactive query)
-   *
-   * @param ctx - Convex query context
-   * @param jobId - Job ID to query
-   * @returns Job status or null if not found
-   *
-   * @example
-   * ```typescript
-   * const status = await browserbase.getJobStatus(ctx, jobId);
-   * if (status?.status === "completed") {
-   *   console.log("Result:", status.result);
-   * }
-   * ```
-   */
-  async getJobStatus(
-    ctx: QueryCtx,
-    jobId: string,
-  ): Promise<JobStatusResult | null> {
-    return await ctx.runQuery(this.component.getJobStatus, { jobId });
-  }
-
-  /**
-   * List jobs with optional filtering
-   *
-   * @param ctx - Convex query context
-   * @param options - Filter options
-   * @returns Array of job summaries
-   *
-   * @example
-   * ```typescript
-   * // Get all completed jobs
-   * const completed = await browserbase.listJobs(ctx, { status: "completed" });
-   *
-   * // Get recent jobs
-   * const recent = await browserbase.listJobs(ctx, { limit: 10 });
-   * ```
-   */
-  async listJobs(
-    ctx: QueryCtx,
-    options?: { status?: JobStatus; limit?: number },
-  ): Promise<JobSummary[]> {
-    return await ctx.runQuery(this.component.listJobs, options ?? {});
-  }
-
-  /**
-   * Cancel a running job
-   *
-   * @param ctx - Convex mutation context
-   * @param jobId - Job ID to cancel
-   *
-   * @example
-   * ```typescript
-   * await browserbase.cancelJob(ctx, jobId);
-   * ```
-   */
-  async cancelJob(ctx: MutationCtx, jobId: string): Promise<void> {
-    await ctx.runMutation(this.component.cancelJob, { jobId });
-  }
-
-  // ========================================
-  // Cron Job Management
-  // ========================================
-
-  /**
-   * Create a new cron job for recurring automation
-   *
-   * @param ctx - Convex mutation context
-   * @param options - Cron job options
-   * @param config - Optional config override (uses constructor config if not provided)
-   * @returns Cron job ID
-   *
-   * @example
-   * ```typescript
-   * const cronJobId = await browserbase.createCronJob(ctx, {
-   *   name: "hackernews-scraper",
-   *   cronExpression: "0 *\/6 * * *", // Every 6 hours
-   *   jobParams: { maxStories: 10 },
-   *   userAction: "internal.browserAutomation.scrapeHackerNewsAction",
-   * });
-   * ```
-   */
-  async createCronJob(
-    ctx: MutationCtx,
-    options: CronJobOptions,
-    config?: BrowserbaseConfig,
-  ): Promise<string> {
-    const finalConfig = config ?? this.config;
-    if (!finalConfig) {
-      throw new Error(
-        "Browserbase config required. Provide config in constructor or createCronJob call.",
-      );
-    }
-
-    return await ctx.runMutation(this.component.createCronJob, {
-      ...options,
-      config: finalConfig,
-    });
-  }
-
-  /**
-   * Update a cron job
-   *
-   * @param ctx - Convex mutation context
-   * @param cronJobId - Cron job ID to update
-   * @param updates - Fields to update
-   *
-   * @example
-   * ```typescript
-   * // Disable a cron job
-   * await browserbase.updateCronJob(ctx, cronJobId, { enabled: false });
-   *
-   * // Change schedule
-   * await browserbase.updateCronJob(ctx, cronJobId, {
-   *   cronExpression: "0 0 * * *", // Daily at midnight
-   * });
-   * ```
-   */
-  async updateCronJob(
-    ctx: MutationCtx,
-    cronJobId: string,
-    updates: Partial<Omit<CronJobOptions, "name" | "userAction">> & {
-      enabled?: boolean;
+  async extract<T extends z.ZodType>(
+    ctx: ActionCtx,
+    args: {
+      url: string;
+      instruction: string;
+      schema: T;
+      options?: ExtractOptions;
     },
-  ): Promise<void> {
-    await ctx.runMutation(this.component.updateCronJob, {
-      cronJobId,
-      ...updates,
+  ): Promise<z.infer<T>> {
+    const jsonSchema = zodToJsonSchema(args.schema);
+    return ctx.runAction(
+      this.component.extract.extract as FunctionReference<"action">,
+      {
+        ...this.config,
+        url: args.url,
+        instruction: args.instruction,
+        schema: jsonSchema,
+        options: args.options,
+      },
+    );
+  }
+
+  /**
+   * Execute a browser action using natural language.
+   *
+   * @param ctx - Convex action context
+   * @param args - Action parameters
+   * @returns Result of the action
+   *
+   * @example
+   * ```typescript
+   * const result = await stagehand.act(ctx, {
+   *   url: "https://example.com/login",
+   *   action: "Click the login button",
+   * });
+   * ```
+   */
+  async act(
+    ctx: ActionCtx,
+    args: {
+      url: string;
+      action: string;
+      options?: ActOptions;
+    },
+  ): Promise<ActResult> {
+    return ctx.runAction(
+      this.component.act.act as FunctionReference<"action">,
+      {
+        ...this.config,
+        url: args.url,
+        action: args.action,
+        options: args.options,
+      },
+    );
+  }
+
+  /**
+   * Find available actions on a web page.
+   *
+   * @param ctx - Convex action context
+   * @param args - Observe parameters
+   * @returns List of available actions
+   *
+   * @example
+   * ```typescript
+   * const actions = await stagehand.observe(ctx, {
+   *   url: "https://example.com",
+   *   instruction: "Find all navigation links",
+   * });
+   * ```
+   */
+  async observe(
+    ctx: ActionCtx,
+    args: {
+      url: string;
+      instruction: string;
+      options?: ObserveOptions;
+    },
+  ): Promise<ObservedAction[]> {
+    return ctx.runAction(
+      this.component.observe.observe as FunctionReference<"action">,
+      {
+        ...this.config,
+        url: args.url,
+        instruction: args.instruction,
+        options: args.options,
+      },
+    );
+  }
+
+  /**
+   * Execute a multi-step workflow with a single browser session.
+   *
+   * @param ctx - Convex action context
+   * @param args - Workflow parameters
+   * @returns Results of all steps and the final result
+   *
+   * @example
+   * ```typescript
+   * const result = await stagehand.workflow(ctx, {
+   *   url: "https://google.com",
+   *   steps: [
+   *     { type: "act", action: "Search for 'convex database'" },
+   *     { type: "extract", instruction: "Get top 3 results", schema: z.object({...}) },
+   *   ],
+   * });
+   * ```
+   */
+  async workflow(
+    ctx: ActionCtx,
+    args: {
+      url: string;
+      steps: WorkflowStep[];
+      options?: WorkflowOptions;
+    },
+  ): Promise<WorkflowResult> {
+    // Convert Zod schemas in steps to JSON Schema
+    const convertedSteps = args.steps.map((step) => {
+      if (step.type === "extract") {
+        return {
+          ...step,
+          schema: zodToJsonSchema(step.schema),
+        };
+      }
+      return step;
     });
-  }
 
-  /**
-   * Delete a cron job
-   *
-   * @param ctx - Convex mutation context
-   * @param cronJobId - Cron job ID to delete
-   *
-   * @example
-   * ```typescript
-   * await browserbase.deleteCronJob(ctx, cronJobId);
-   * ```
-   */
-  async deleteCronJob(ctx: MutationCtx, cronJobId: string): Promise<void> {
-    await ctx.runMutation(this.component.deleteCronJob, { cronJobId });
-  }
-
-  /**
-   * Get cron job details
-   *
-   * @param ctx - Convex query context
-   * @param cronJobId - Cron job ID to query
-   * @returns Cron job summary or null if not found
-   *
-   * @example
-   * ```typescript
-   * const cronJob = await browserbase.getCronJob(ctx, cronJobId);
-   * console.log("Next run:", new Date(cronJob?.nextRunAt));
-   * ```
-   */
-  async getCronJob(
-    ctx: QueryCtx,
-    cronJobId: string,
-  ): Promise<CronJobSummary | null> {
-    return await ctx.runQuery(this.component.getCronJob, { cronJobId });
-  }
-
-  /**
-   * List cron jobs
-   *
-   * @param ctx - Convex query context
-   * @param options - Filter options
-   * @returns Array of cron job summaries
-   *
-   * @example
-   * ```typescript
-   * // Get all enabled cron jobs
-   * const enabled = await browserbase.listCronJobs(ctx, { enabled: true });
-   *
-   * // Get all cron jobs
-   * const all = await browserbase.listCronJobs(ctx);
-   * ```
-   */
-  async listCronJobs(
-    ctx: QueryCtx,
-    options?: { enabled?: boolean; limit?: number },
-  ): Promise<CronJobSummary[]> {
-    return await ctx.runQuery(this.component.listCronJobs, options ?? {});
+    return ctx.runAction(
+      this.component.workflow.workflow as FunctionReference<"action">,
+      {
+        ...this.config,
+        url: args.url,
+        steps: convertedSteps,
+        options: args.options,
+      },
+    );
   }
 }
+
+export default Stagehand;

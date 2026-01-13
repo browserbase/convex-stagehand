@@ -1,7 +1,7 @@
 import { defineApp } from "convex/server";
-import browserbase from "../../convex.config";
+import stagehand from "../../convex.config.js";
 
 const app = defineApp();
-app.use(browserbase, { name: "browserbase" });
+app.use(stagehand, { name: "stagehand" });
 
 export default app;

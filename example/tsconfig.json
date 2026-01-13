@@ -1,15 +1,18 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "lib": ["ESNext"],
-    "skipLibCheck": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
+    "lib": ["ES2021", "DOM"],
     "module": "ESNext",
-    "moduleResolution": "Bundler",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
   },
-  "include": ["."]
+  "include": ["convex/**/*"]
 }

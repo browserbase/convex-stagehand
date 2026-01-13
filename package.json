@@ -1,31 +1,26 @@
 {
-  "name": "@convex-dev/browserbase",
-  "version": "0.1.0",
-  "description": "Convex component for durable browser automation using Browserbase cloud browsers",
+  "name": "@convex-dev/stagehand",
+  "version": "0.0.1",
+  "description": "Convex component for AI-powered browser automation with Stagehand",
+  "type": "module",
   "main": "./dist/client/index.js",
   "types": "./dist/client/index.d.ts",
-  "module": "./dist/client/index.js",
-  "type": "module",
   "exports": {
-    "./package.json": "./package.json",
     ".": {
       "types": "./dist/client/index.d.ts",
       "default": "./dist/client/index.js"
     },
-    "./test": "./src/test.ts",
-    "./_generated/component.js": {
-      "types": "./dist/component/_generated/component.d.ts"
-    },
-    "./_generated/component": {
-      "types": "./dist/component/_generated/component.d.ts"
-    },
-    "./convex.config.js": {
-      "types": "./dist/component/convex.config.d.ts",
-      "default": "./dist/component/convex.config.js"
-    },
     "./convex.config": {
       "types": "./dist/component/convex.config.d.ts",
       "default": "./dist/component/convex.config.js"
+    },
+    "./_generated/component": {
+      "types": "./dist/component/_generated/component.d.ts",
+      "default": "./dist/component/_generated/component.js"
+    },
+    "./test": {
+      "types": "./dist/test.d.ts",
+      "default": "./dist/test.js"
     }
   },
   "files": [
@@ -33,62 +28,52 @@
     "src"
   ],
   "scripts": {
-    "dev": "run-p -r 'dev:*'",
-    "dev:backend": "convex dev --typecheck-components",
-    "dev:build": "chokidar 'tsconfig*.json' 'src/**/*.ts' -i '**/*.test.ts' -c 'npm run build:codegen' --initial",
-    "predev": "path-exists .env.local dist || (npm run build && convex dev --once)",
-    "build": "tsc --project ./tsconfig.build.json",
-    "build:codegen": "npx convex codegen --component-dir ./src/component && npm run build",
-    "build:clean": "rm -rf dist *.tsbuildinfo && npm run build:codegen",
-    "typecheck": "tsc --noEmit && tsc -p example/convex",
+    "build": "npm run build:esm",
+    "build:esm": "tsc --project ./tsconfig.build.json",
+    "build:codegen": "npx convex codegen --component-dir ./src/component && npm run build:esm",
+    "build:clean": "rm -rf dist && npm run build:codegen",
+    "dev": "npm-run-all --parallel 'dev:*'",
+    "dev:backend": "npx convex dev --typecheck-components",
+    "dev:build": "chokidar 'src/**/*.ts' --initial -c 'npm run build:codegen'",
+    "typecheck": "tsc --noEmit && cd example && tsc --noEmit",
     "lint": "eslint .",
-    "all": "run-p -r 'dev:*' 'test:watch'",
     "test": "vitest run --typecheck",
-    "test:watch": "vitest --typecheck --clearScreen false",
-    "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:coverage": "vitest run --coverage --coverage.reporter=text",
-    "preversion": "npm ci && npm run build:clean && run-p test lint typecheck",
-    "alpha": "npm version prerelease --preid alpha && npm publish --tag alpha && git push --follow-tags",
-    "release": "npm version patch && npm publish && git push --follow-tags"
+    "test:watch": "vitest --typecheck"
   },
   "keywords": [
     "convex",
     "component",
+    "stagehand",
     "browserbase",
     "browser-automation",
-    "web-scraping",
-    "playwright",
-    "puppeteer"
+    "ai",
+    "web-scraping"
   ],
-  "author": "",
+  "author": "Browserbase",
   "license": "MIT",
-  "dependencies": {
-    "@convex-dev/workpool": "^0.3.0",
-    "cron-parser": "^5.4.0",
-    "zod": "^3.23.8"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/browserbase/convex-stagehand"
   },
-  "devDependencies": {
-    "@convex-dev/eslint-plugin": "^1.1.1",
-    "@edge-runtime/vm": "^5.0.0",
-    "@eslint/eslintrc": "^3.3.1",
-    "@eslint/js": "9.39.1",
-    "@types/node": "^24.10.4",
-    "@vitest/coverage-v8": "^2.0.0",
-    "chokidar-cli": "3.0.0",
-    "convex": "1.31.0",
-    "convex-test": "0.0.40",
-    "cpy-cli": "^6.0.0",
-    "eslint": "9.39.1",
-    "globals": "^16.5.0",
-    "npm-run-all2": "8.0.4",
-    "path-exists-cli": "2.0.0",
-    "pkg-pr-new": "^0.0.60",
-    "prettier": "3.6.2",
-    "typescript": "5.9.3",
-    "typescript-eslint": "8.47.0",
-    "vitest": "3.2.4"
+  "dependencies": {
+    "zod-to-json-schema": "^3.23.0"
   },
   "peerDependencies": {
-    "convex": "^1.29.3"
+    "convex": "^1.29.3",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^20.10.0",
+    "chokidar-cli": "^3.0.0",
+    "convex": "^1.31.0",
+    "convex-test": "^0.0.40",
+    "eslint": "^9.0.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.0.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.0.0",
+    "zod": "^3.23.0"
   }
 }

@@ -2,7 +2,6 @@ node_modules/
 dist/
 .env
 .env.local
+_generated/
 .DS_Store
-component/_generated/
-example/_generated/
 *.log
