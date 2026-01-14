@@ -2,11 +2,12 @@
  * Example usage of the Stagehand component
  */
 
-import { action } from "./_generated/server";
+import { action, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { Stagehand } from "../../src/client/index.js";
 import { components } from "./_generated/api";
 import { z } from "zod";
+import { internal } from "./_generated/api";
 
 // Initialize the Stagehand client
 const stagehand = new Stagehand(components.stagehand, {
@@ -17,10 +18,9 @@ const stagehand = new Stagehand(components.stagehand, {
 });
 
 /**
- * Example 1: Extract data from HackerNews
+ * Example 1: Extract data from HackerNews and save to database
  *
- * Demonstrates the simplest use case - extracting structured data
- * from a web page with AI.
+ * Demonstrates the complete pattern: extract data with AI and persist to Convex.
  */
 export const scrapeHackerNews = action({
   args: {
@@ -29,6 +29,7 @@ export const scrapeHackerNews = action({
   handler: async (ctx, args) => {
     const numStories = args.maxStories || 5;
 
+    // Extract data using Stagehand
     const data = await stagehand.extract(ctx, {
       url: "https://news.ycombinator.com",
       instruction: `Extract the top ${numStories} stories from the front page.
@@ -45,10 +46,19 @@ export const scrapeHackerNews = action({
       }),
     });
 
+    // Save to database
+    const scrapedAt = new Date().toISOString();
+    await ctx.runMutation(internal.example.saveStories, {
+      stories: data.stories.map((story, index) => ({
+        rank: index + 1,
+        ...story,
+        scrapedAt,
+      })),
+    });
+
     return {
-      stories: data.stories,
       count: data.stories.length,
-      scrapedAt: new Date().toISOString(),
+      scrapedAt,
     };
   },
 });
@@ -205,5 +215,32 @@ export const scrapeProducts = action({
       count: data.products.length,
       scrapedAt: new Date().toISOString(),
     };
+  },
+});
+
+/**
+ * Internal mutation to save scraped stories to the database.
+ * Called by scrapeHackerNews action.
+ */
+export const saveStories = mutation({
+  args: {
+    stories: v.array(
+      v.object({
+        rank: v.number(),
+        title: v.string(),
+        url: v.string(),
+        score: v.string(),
+        age: v.string(),
+        scrapedAt: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const ids = [];
+    for (const story of args.stories) {
+      const id = await ctx.db.insert("hackerNewsStories", story);
+      ids.push(id);
+    }
+    return ids;
   },
 });
