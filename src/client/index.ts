@@ -133,7 +133,7 @@ export class Stagehand {
     // Remove $schema field as it's reserved in Convex
     delete jsonSchema.$schema;
     return ctx.runAction(
-      this.component.extract.extract as any,
+      this.component.lib.extract as any,
       {
         ...this.config,
         url: args.url,
@@ -168,7 +168,7 @@ export class Stagehand {
     },
   ): Promise<ActResult> {
     return ctx.runAction(
-      this.component.act.act as any,
+      this.component.lib.act as any,
       {
         ...this.config,
         url: args.url,
@@ -202,7 +202,7 @@ export class Stagehand {
     },
   ): Promise<ObservedAction[]> {
     return ctx.runAction(
-      this.component.observe.observe as any,
+      this.component.lib.observe as any,
       {
         ...this.config,
         url: args.url,
@@ -253,7 +253,7 @@ export class Stagehand {
     });
 
     return ctx.runAction(
-      this.component.workflow.workflow as any,
+      this.component.lib.workflow as any,
       {
         ...this.config,
         url: args.url,

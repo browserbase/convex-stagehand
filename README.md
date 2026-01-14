@@ -310,17 +310,17 @@ The component handles all session lifecycle management automatically.
 
 ### Component Structure
 
-The component exposes its API through Convex's component system. The internal structure is:
+The component exposes its API through Convex's component system. All functions are in a single `lib.ts` module:
 
 ```
-component.<module>.<function>
+component.lib.<function>
 ```
 
 For example:
-- `component.extract.extract` - The `extract` function from `src/component/extract.ts`
-- `component.act.act` - The `act` function from `src/component/act.ts`
-- `component.observe.observe` - The `observe` function from `src/component/observe.ts`
-- `component.workflow.workflow` - The `workflow` function from `src/component/workflow.ts`
+- `component.lib.extract` - Extract data from web pages
+- `component.lib.act` - Perform browser actions
+- `component.lib.observe` - Find interactive elements
+- `component.lib.workflow` - Multi-step automation
 
 The `Stagehand` client class wraps these internal paths to provide a clean user API:
 
@@ -329,7 +329,7 @@ The `Stagehand` client class wraps these internal paths to provide a clean user 
 stagehand.extract(ctx, {...})
 
 // Internally calls:
-ctx.runAction(component.extract.extract, {...})
+ctx.runAction(component.lib.extract, {...})
 ```
 
 ### Building the Component

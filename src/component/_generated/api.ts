@@ -8,11 +8,8 @@
  * @module
  */
 
-import type * as act from "../act.js";
 import type * as api_ from "../api.js";
-import type * as extract from "../extract.js";
-import type * as observe from "../observe.js";
-import type * as workflow from "../workflow.js";
+import type * as lib from "../lib.js";
 
 import type {
   ApiFromModules,
@@ -22,11 +19,8 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
-  act: typeof act;
   api: typeof api_;
-  extract: typeof extract;
-  observe: typeof observe;
-  workflow: typeof workflow;
+  lib: typeof lib;
 }> = anyApi as any;
 
 /**
