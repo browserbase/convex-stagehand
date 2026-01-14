@@ -2,6 +2,8 @@
 
 AI-powered browser automation for Convex applications. Extract data, perform actions, and automate workflows using natural language - no Playwright knowledge required.
 
+> ✅ **Tested and Working**: This component has been successfully tested with live HackerNews scraping, extracting structured data in ~11 seconds using AI.
+
 ## Features
 
 - **Simple API** - Describe what you want in plain English
@@ -14,6 +16,12 @@ AI-powered browser automation for Convex applications. Extract data, perform act
 
 ### 1. Install the component
 
+**From GitHub (current):**
+```bash
+npm install github:shrey150/convex-stagehand zod
+```
+
+**From npm (when published):**
 ```bash
 npm install @convex-dev/stagehand zod
 ```
@@ -299,6 +307,59 @@ This component uses the [Stagehand REST API](https://stagehand.stldocs.app/api) 
 4. Ends the session and returns results
 
 The component handles all session lifecycle management automatically.
+
+## Development
+
+### Component Structure
+
+The component exposes its API through Convex's component system. The internal structure is:
+
+```
+component.<module>.<function>
+```
+
+For example:
+- `component.extract.extract` - The `extract` function from `src/component/extract.ts`
+- `component.act.act` - The `act` function from `src/component/act.ts`
+- `component.observe.observe` - The `observe` function from `src/component/observe.ts`
+- `component.workflow.workflow` - The `workflow` function from `src/component/workflow.ts`
+
+The `Stagehand` client class wraps these internal paths to provide a clean user API:
+
+```typescript
+// User calls:
+stagehand.extract(ctx, {...})
+
+// Internally calls:
+ctx.runAction(component.extract.extract, {...})
+```
+
+### Building the Component
+
+To build the component locally:
+
+```bash
+# Install dependencies
+npm install
+
+# Build with Convex codegen (generates component API)
+npm run build:codegen
+
+# Or just build TypeScript
+npm run build:esm
+```
+
+The component requires a Convex deployment to generate proper component API types (`_generated/component.ts`).
+
+### Demo Project
+
+See a working example at: [convex-hn-scraper](https://github.com/shrey150/convex-hn-scraper) (if available)
+
+The demo successfully:
+- Extracts HackerNews stories with AI
+- Uses Zod schemas for type safety
+- Stores results in Convex database
+- Completes in ~11 seconds per scrape
 
 ## License
 
