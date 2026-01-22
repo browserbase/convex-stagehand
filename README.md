@@ -12,11 +12,11 @@ AI-powered browser automation for Convex applications. Extract data, perform act
 
 ## Quick Start
 
-### 1. Install the component
+### 1. Install the Component
 
 **From GitHub (current):**
 ```bash
-npm install github:shrey150/convex-stagehand zod
+npm install github:browserbase/convex-stagehand zod
 ```
 
 **From npm (when published):**
@@ -38,17 +38,17 @@ app.use(stagehand, { name: "stagehand" });
 export default app;
 ```
 
-### 3. Set up environment variables
+### 3. Set Up Environment Variables
 
-Add these to your Convex dashboard (Settings → Environment Variables):
+Add these to your [Convex Dashboard](https://dashboard.convex.dev) → Settings → Environment Variables:
 
-```
-BROWSERBASE_API_KEY=your_browserbase_api_key
-BROWSERBASE_PROJECT_ID=your_browserbase_project_id
-OPENAI_API_KEY=your_openai_api_key
-```
+| Variable | Description |
+|----------|-------------|
+| `BROWSERBASE_API_KEY` | Your Browserbase API key |
+| `BROWSERBASE_PROJECT_ID` | Your Browserbase project ID |
+| `OPENAI_API_KEY` | Your OpenAI API key (or use Anthropic - see Configuration) |
 
-### 4. Use the component
+### 4. Use the Component
 
 ```typescript
 import { action } from "./_generated/server";
@@ -349,15 +349,22 @@ npm run build:esm
 
 The component requires a Convex deployment to generate proper component API types (`_generated/component.ts`).
 
-### Demo Project
+### Example App
 
-See a working example at: [convex-hn-scraper](https://github.com/shrey150/convex-hn-scraper) (if available)
+Check out the full example app in the [`example/`](./example) directory:
 
-The demo successfully:
-- Extracts HackerNews stories with AI
-- Uses Zod schemas for type safety
-- Stores results in Convex database
-- Completes in ~11 seconds per scrape
+```bash
+git clone https://github.com/browserbase/convex-stagehand
+cd convex-stagehand/example
+npm install
+npm run dev
+```
+
+The example includes:
+- HackerNews story extraction with AI
+- Type-safe data extraction using Zod schemas
+- Database persistence with Convex
+- Real-time updates and automatic refresh
 
 ## License
 
