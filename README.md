@@ -6,8 +6,8 @@ AI-powered browser automation for Convex applications. Extract data, perform act
 
 - **Simple API** - Describe what you want in plain English
 - **Type-safe** - Full TypeScript support with Zod schemas
-- **Zero boilerplate** - Component handles session lifecycle automatically
-- **Multi-step workflows** - Chain multiple operations with a single browser session
+- **Session management** - Reuse browser sessions across multiple operations
+- **Agent mode** - Autonomous multi-step task execution
 - **Powered by Stagehand** - Uses the [Stagehand](https://github.com/browserbase/stagehand) REST API
 
 ## Quick Start
@@ -75,11 +75,66 @@ export const scrapeHackerNews = action({
 
 ## API Reference
 
+### `startSession(ctx, args)`
+
+Start a new browser session. Returns session info for use with other operations.
+
+```typescript
+const session = await stagehand.startSession(ctx, {
+  url: "https://example.com",
+  browserbaseSessionId: "optional-existing-session-id",
+  options: {
+    timeout: 30000,
+    waitUntil: "networkidle",
+    domSettleTimeoutMs: 2000,
+    selfHeal: true,
+    systemPrompt: "Custom system prompt for the session",
+  }
+});
+// { sessionId: "...", browserbaseSessionId: "...", cdpUrl: "wss://..." }
+```
+
+**Parameters:**
+- `url` - The URL to navigate to
+- `browserbaseSessionId` - Optional: Resume an existing Browserbase session
+- `options.timeout` - Navigation timeout in milliseconds
+- `options.waitUntil` - When to consider navigation complete: `"load"`, `"domcontentloaded"`, or `"networkidle"`
+- `options.domSettleTimeoutMs` - Timeout for DOM to settle before considering page loaded
+- `options.selfHeal` - Enable self-healing capabilities for more robust automation
+- `options.systemPrompt` - Custom system prompt to guide the AI's behavior during the session
+
+**Returns:**
+```typescript
+{
+  sessionId: string;           // Use with other operations
+  browserbaseSessionId?: string; // Store to resume later
+  cdpUrl?: string;             // For advanced Playwright/Puppeteer usage
+}
+```
+
+---
+
+### `endSession(ctx, args)`
+
+End a browser session.
+
+```typescript
+await stagehand.endSession(ctx, { sessionId: session.sessionId });
+```
+
+**Parameters:**
+- `sessionId` - The session to end
+
+**Returns:** `{ success: boolean }`
+
+---
+
 ### `extract(ctx, args)`
 
 Extract structured data from a web page using AI.
 
 ```typescript
+// Without session (creates and destroys its own)
 const data = await stagehand.extract(ctx, {
   url: "https://example.com",
   instruction: "Extract all product names and prices",
@@ -89,15 +144,19 @@ const data = await stagehand.extract(ctx, {
       price: z.string(),
     }))
   }),
-  options: {
-    timeout: 30000,
-    waitUntil: "networkidle",
-  }
+});
+
+// With existing session (reuses session, doesn't end it)
+const data = await stagehand.extract(ctx, {
+  sessionId: session.sessionId,
+  instruction: "Extract all product names and prices",
+  schema: z.object({ ... }),
 });
 ```
 
 **Parameters:**
-- `url` - The URL to navigate to
+- `sessionId` - Optional: Use an existing session
+- `url` - The URL to navigate to (required if no sessionId)
 - `instruction` - Natural language description of what to extract
 - `schema` - Zod schema defining the expected output structure
 - `options.timeout` - Navigation timeout in milliseconds
@@ -112,18 +171,22 @@ const data = await stagehand.extract(ctx, {
 Execute browser actions using natural language.
 
 ```typescript
+// Without session
 const result = await stagehand.act(ctx, {
   url: "https://example.com/login",
   action: "Click the login button and wait for the page to load",
-  options: {
-    timeout: 30000,
-  }
 });
-// { success: true, message: "Clicked button...", actionDescription: "..." }
+
+// With existing session
+const result = await stagehand.act(ctx, {
+  sessionId: session.sessionId,
+  action: "Fill in the email field with 'user@example.com'",
+});
 ```
 
 **Parameters:**
-- `url` - The URL to navigate to
+- `sessionId` - Optional: Use an existing session
+- `url` - The URL to navigate to (required if no sessionId)
 - `action` - Natural language description of the action to perform
 - `options.timeout` - Navigation timeout in milliseconds
 - `options.waitUntil` - When to consider navigation complete
@@ -152,7 +215,8 @@ const actions = await stagehand.observe(ctx, {
 ```
 
 **Parameters:**
-- `url` - The URL to navigate to
+- `sessionId` - Optional: Use an existing session
+- `url` - The URL to navigate to (required if no sessionId)
 - `instruction` - Natural language description of what actions to find
 - `options.timeout` - Navigation timeout in milliseconds
 - `options.waitUntil` - When to consider navigation complete
@@ -169,49 +233,54 @@ Array<{
 
 ---
 
-### `workflow(ctx, args)`
+### `agent(ctx, args)`
 
-Execute multi-step automation with a single browser session.
+Execute autonomous multi-step browser automation using an AI agent. The agent interprets the instruction and decides what actions to take.
 
 ```typescript
-const result = await stagehand.workflow(ctx, {
+// Agent creates its own session
+const result = await stagehand.agent(ctx, {
   url: "https://google.com",
-  steps: [
-    { type: "act", action: "Search for 'convex database'" },
-    { type: "act", action: "Click the first result" },
-    {
-      type: "extract",
-      instruction: "Get the page title and summary",
-      schema: z.object({
-        title: z.string(),
-        summary: z.string(),
-      })
-    }
-  ],
+  instruction: "Search for 'convex database' and extract the top 3 results with title and URL",
+  options: { maxSteps: 10 },
+});
+
+// Agent with existing session
+const result = await stagehand.agent(ctx, {
+  sessionId: session.sessionId,
+  instruction: "Fill out the contact form and submit",
+  options: { maxSteps: 5 },
 });
 ```
 
 **Parameters:**
-- `url` - The initial URL to navigate to
-- `steps` - Array of steps to execute:
-  - `{ type: "navigate", url: string }` - Navigate to a URL
-  - `{ type: "act", action: string }` - Perform an action
-  - `{ type: "extract", instruction: string, schema: ZodType }` - Extract data
-  - `{ type: "observe", instruction: string }` - Find actions
+- `sessionId` - Optional: Use an existing session
+- `url` - The URL to navigate to (required if no sessionId)
+- `instruction` - Natural language description of the task to complete
+- `options.cua` - Enable Computer Use Agent mode
+- `options.maxSteps` - Maximum steps the agent can take
+- `options.systemPrompt` - Custom system prompt for the agent
 - `options.timeout` - Navigation timeout in milliseconds
 - `options.waitUntil` - When to consider navigation complete
 
 **Returns:**
 ```typescript
 {
-  results: any[];  // Results from each step
-  finalResult: any; // Result from the last step
+  actions: Array<{
+    type: string;
+    action?: string;
+    reasoning?: string;
+    timeMs?: number;
+  }>;
+  completed: boolean;
+  message: string;
+  success: boolean;
 }
 ```
 
 ## Examples
 
-### Extract news articles
+### Simple extraction (automatic session)
 
 ```typescript
 const news = await stagehand.extract(ctx, {
@@ -227,38 +296,83 @@ const news = await stagehand.extract(ctx, {
 });
 ```
 
-### Fill out a form
+### Manual session management
+
+Use session management when you need to perform multiple operations while preserving browser state (cookies, login, etc.):
 
 ```typescript
-const result = await stagehand.workflow(ctx, {
-  url: "https://example.com/contact",
-  steps: [
-    { type: "act", action: "Fill in the name field with 'John Doe'" },
-    { type: "act", action: "Fill in the email field with 'john@example.com'" },
-    { type: "act", action: "Fill in the message field with 'Hello!'" },
-    { type: "act", action: "Click the submit button" },
-  ],
+// Start a session
+const session = await stagehand.startSession(ctx, {
+  url: "https://google.com"
 });
+
+// Perform multiple operations in the same session
+await stagehand.act(ctx, {
+  sessionId: session.sessionId,
+  action: "Search for 'convex database'"
+});
+
+const data = await stagehand.extract(ctx, {
+  sessionId: session.sessionId,
+  instruction: "Extract the top 3 results",
+  schema: z.object({
+    results: z.array(z.object({
+      title: z.string(),
+      url: z.string(),
+    }))
+  })
+});
+
+// End the session when done
+await stagehand.endSession(ctx, { sessionId: session.sessionId });
 ```
 
-### Search and extract results
+### Autonomous agent
+
+Let the AI agent figure out how to complete a complex task:
 
 ```typescript
-const searchResults = await stagehand.workflow(ctx, {
+const result = await stagehand.agent(ctx, {
   url: "https://www.google.com",
-  steps: [
-    { type: "act", action: "Search for 'best pizza in NYC'" },
-    {
-      type: "extract",
-      instruction: "Get the top 5 search results with title and URL",
-      schema: z.object({
-        results: z.array(z.object({
-          title: z.string(),
-          url: z.string(),
-        }))
-      })
-    },
-  ],
+  instruction: "Search for 'best pizza in NYC', click on the first result, and extract the restaurant name and address",
+  options: { maxSteps: 10 }
+});
+
+console.log(result.message); // Summary of what the agent did
+console.log(result.actions); // Detailed log of each action taken
+```
+
+### Resume session across Convex actions
+
+Store the `browserbaseSessionId` to resume sessions across different Convex action calls:
+
+```typescript
+// Action 1: Start session and return browserbaseSessionId
+export const startBrowsing = action({
+  handler: async (ctx) => {
+    const session = await stagehand.startSession(ctx, {
+      url: "https://example.com/login"
+    });
+    // Store browserbaseSessionId in your database
+    return session.browserbaseSessionId;
+  }
+});
+
+// Action 2: Resume session later
+export const continueBrowsing = action({
+  args: { browserbaseSessionId: v.string() },
+  handler: async (ctx, args) => {
+    const session = await stagehand.startSession(ctx, {
+      url: "https://example.com/dashboard",
+      browserbaseSessionId: args.browserbaseSessionId,
+    });
+    // Continue using the same browser instance
+    return await stagehand.extract(ctx, {
+      sessionId: session.sessionId,
+      instruction: "Extract user data",
+      schema: z.object({ ... }),
+    });
+  }
 });
 ```
 
@@ -293,12 +407,12 @@ Supported models include:
 
 This component uses the [Stagehand REST API](https://stagehand.stldocs.app/api) to power browser automation. Each operation:
 
-1. Starts a cloud browser session via Browserbase
+1. Starts a cloud browser session via Browserbase (or reuses an existing one)
 2. Navigates to the target URL
 3. Uses AI to understand the page and perform the requested operation
-4. Ends the session and returns results
+4. Optionally ends the session and returns results
 
-The component handles all session lifecycle management automatically.
+With session management, you control when sessions start and end, allowing you to maintain browser state across multiple operations.
 
 ## Development
 
@@ -311,10 +425,12 @@ component.lib.<function>
 ```
 
 For example:
+- `component.lib.startSession` - Start a browser session
+- `component.lib.endSession` - End a browser session
 - `component.lib.extract` - Extract data from web pages
 - `component.lib.act` - Perform browser actions
 - `component.lib.observe` - Find interactive elements
-- `component.lib.workflow` - Multi-step automation
+- `component.lib.agent` - Autonomous multi-step automation
 
 The `Stagehand` client class wraps these internal paths to provide a clean user API:
 
