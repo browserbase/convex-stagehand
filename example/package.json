@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "convex": "^1.31.0",
+    "convex-stagehand": "file:..",
     "zod": "^3.23.0"
   },
   "devDependencies": {

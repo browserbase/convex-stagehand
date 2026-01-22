@@ -2,15 +2,15 @@
  * Example usage of the Stagehand component
  */
 
-import { action, mutation } from "./_generated/server";
+import { action, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { Stagehand } from "../../src/client/index.js";
+import { Stagehand, type ComponentApi } from "convex-stagehand";
 import { components } from "./_generated/api";
 import { z } from "zod";
 import { internal } from "./_generated/api";
 
 // Initialize the Stagehand client
-const stagehand = new Stagehand(components.stagehand, {
+const stagehand = new Stagehand(components.stagehand as unknown as ComponentApi, {
   browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
   browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
   modelApiKey: process.env.OPENAI_API_KEY!,
@@ -142,45 +142,87 @@ export const performAction = action({
 });
 
 /**
- * Example 5: Multi-step workflow
+ * Example 5: Session management - search and extract with preserved state
  *
- * Demonstrates chaining multiple actions with a single browser session.
+ * Demonstrates using session management to perform multiple operations
+ * while preserving browser state (cookies, login, page context).
  */
-export const searchAndExtract = action({
+export const searchAndExtractWithSession = action({
   args: {
     searchQuery: v.string(),
   },
   handler: async (ctx, args) => {
-    const result = await stagehand.workflow(ctx, {
+    // Start a session
+    const session = await stagehand.startSession(ctx, {
       url: "https://www.google.com",
-      steps: [
-        { type: "act", action: `Search for "${args.searchQuery}"` },
-        {
-          type: "extract",
-          instruction: "Extract the top 3 search results with title, URL, and snippet",
-          schema: z.object({
-            results: z.array(
-              z.object({
-                title: z.string(),
-                url: z.string(),
-                snippet: z.string(),
-              }),
-            ),
-          }),
-        },
-      ],
+    });
+
+    try {
+      // Perform search action
+      await stagehand.act(ctx, {
+        sessionId: session.sessionId,
+        action: `Search for "${args.searchQuery}"`,
+      });
+
+      // Extract results from the same session
+      const data = await stagehand.extract(ctx, {
+        sessionId: session.sessionId,
+        instruction:
+          "Extract the top 3 search results with title, URL, and snippet",
+        schema: z.object({
+          results: z.array(
+            z.object({
+              title: z.string(),
+              url: z.string(),
+              snippet: z.string(),
+            }),
+          ),
+        }),
+      });
+
+      return {
+        searchQuery: args.searchQuery,
+        results: data.results,
+        completedAt: new Date().toISOString(),
+      };
+    } finally {
+      // Always end the session
+      await stagehand.endSession(ctx, { sessionId: session.sessionId });
+    }
+  },
+});
+
+/**
+ * Example 6: Autonomous agent
+ *
+ * Demonstrates using the agent to autonomously complete a multi-step task.
+ * The agent decides what actions to take based on the instruction.
+ */
+export const agentSearchAndExtract = action({
+  args: {
+    searchQuery: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const result = await stagehand.agent(ctx, {
+      url: "https://www.google.com",
+      instruction: `Search for "${args.searchQuery}" and extract the top 3 search results including their title, URL, and description`,
+      options: {
+        maxSteps: 10,
+      },
     });
 
     return {
       searchQuery: args.searchQuery,
-      results: result.finalResult?.data?.results || [],
+      success: result.success,
+      message: result.message,
+      actionsPerformed: result.actions.length,
       completedAt: new Date().toISOString(),
     };
   },
 });
 
 /**
- * Example 6: E-commerce product extraction
+ * Example 7: E-commerce product extraction
  *
  * Real-world example of extracting product data.
  */
@@ -222,7 +264,7 @@ export const scrapeProducts = action({
  * Internal mutation to save scraped stories to the database.
  * Called by scrapeHackerNews action.
  */
-export const saveStories = mutation({
+export const saveStories = internalMutation({
   args: {
     stories: v.array(
       v.object({

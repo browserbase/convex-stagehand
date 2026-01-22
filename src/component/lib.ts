@@ -2,7 +2,7 @@
  * Stagehand Component Library
  *
  * AI-powered browser automation actions using the Stagehand REST API.
- * All actions handle the full session lifecycle: start -> navigate -> action -> end
+ * Supports both automatic session management and manual session control.
  */
 
 import { action } from "./_generated/server.js";
@@ -16,53 +16,46 @@ const observedActionValidator = v.object({
   arguments: v.optional(v.array(v.string())),
 });
 
-const stepValidator = v.union(
-  v.object({
-    type: v.literal("navigate"),
-    url: v.string(),
-  }),
-  v.object({
-    type: v.literal("act"),
-    action: v.string(),
-  }),
-  v.object({
-    type: v.literal("extract"),
-    instruction: v.string(),
-    schema: v.any(),
-  }),
-  v.object({
-    type: v.literal("observe"),
-    instruction: v.string(),
-  }),
+const waitUntilValidator = v.union(
+  v.literal("load"),
+  v.literal("domcontentloaded"),
+  v.literal("networkidle"),
 );
 
+const agentActionValidator = v.object({
+  type: v.string(),
+  action: v.optional(v.string()),
+  reasoning: v.optional(v.string()),
+  timeMs: v.optional(v.number()),
+});
+
 /**
- * Extract structured data from a web page using AI.
- * Handles the full session lifecycle: start -> navigate -> extract -> end
+ * Start a new browser session.
+ * Returns session info including cdpUrl for direct Playwright/Puppeteer connection.
  */
-export const extract = action({
+export const startSession = action({
   args: {
     browserbaseApiKey: v.string(),
     browserbaseProjectId: v.string(),
     modelApiKey: v.string(),
     modelName: v.optional(v.string()),
     url: v.string(),
-    instruction: v.string(),
-    schema: v.any(),
+    browserbaseSessionId: v.optional(v.string()),
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
-        waitUntil: v.optional(
-          v.union(
-            v.literal("load"),
-            v.literal("domcontentloaded"),
-            v.literal("networkidle"),
-          ),
-        ),
+        waitUntil: v.optional(waitUntilValidator),
+        domSettleTimeoutMs: v.optional(v.number()),
+        selfHeal: v.optional(v.boolean()),
+        systemPrompt: v.optional(v.string()),
       }),
     ),
   },
-  returns: v.any(),
+  returns: v.object({
+    sessionId: v.string(),
+    browserbaseSessionId: v.optional(v.string()),
+    cdpUrl: v.optional(v.string()),
+  }),
   handler: async (_ctx: any, args: any) => {
     const config: api.ApiConfig = {
       browserbaseApiKey: args.browserbaseApiKey,
@@ -71,7 +64,12 @@ export const extract = action({
       modelName: args.modelName,
     };
 
-    const session = await api.startSession(config);
+    const session = await api.startSession(config, {
+      browserbaseSessionId: args.browserbaseSessionId,
+      domSettleTimeoutMs: args.options?.domSettleTimeoutMs,
+      selfHeal: args.options?.selfHeal,
+      systemPrompt: args.options?.systemPrompt,
+    });
 
     try {
       await api.navigate(session.sessionId, args.url, config, {
@@ -79,16 +77,11 @@ export const extract = action({
         timeout: args.options?.timeout,
       });
 
-      const result = await api.extract(
-        session.sessionId,
-        args.instruction,
-        args.schema,
-        config,
-      );
-
-      await api.endSession(session.sessionId, config);
-
-      return result.result;
+      return {
+        sessionId: session.sessionId,
+        browserbaseSessionId: session.browserbaseSessionId,
+        cdpUrl: session.cdpUrl,
+      };
     } catch (error) {
       await api.endSession(session.sessionId, config);
       throw error;
@@ -97,8 +90,104 @@ export const extract = action({
 });
 
 /**
+ * End a browser session.
+ */
+export const endSession = action({
+  args: {
+    browserbaseApiKey: v.string(),
+    browserbaseProjectId: v.string(),
+    modelApiKey: v.string(),
+    sessionId: v.string(),
+  },
+  returns: v.object({ success: v.boolean() }),
+  handler: async (_ctx: any, args: any) => {
+    const config: api.ApiConfig = {
+      browserbaseApiKey: args.browserbaseApiKey,
+      browserbaseProjectId: args.browserbaseProjectId,
+      modelApiKey: args.modelApiKey,
+    };
+
+    await api.endSession(args.sessionId, config);
+    return { success: true };
+  },
+});
+
+/**
+ * Extract structured data from a web page using AI.
+ * If sessionId is provided, uses existing session (doesn't end it).
+ * Otherwise, handles full session lifecycle: start -> navigate -> extract -> end
+ */
+export const extract = action({
+  args: {
+    browserbaseApiKey: v.string(),
+    browserbaseProjectId: v.string(),
+    modelApiKey: v.string(),
+    modelName: v.optional(v.string()),
+    sessionId: v.optional(v.string()),
+    url: v.optional(v.string()),
+    instruction: v.string(),
+    schema: v.any(),
+    options: v.optional(
+      v.object({
+        timeout: v.optional(v.number()),
+        waitUntil: v.optional(waitUntilValidator),
+      }),
+    ),
+  },
+  returns: v.any(),
+  handler: async (_ctx: any, args: any) => {
+    if (!args.sessionId && !args.url) {
+      throw new Error("Either sessionId or url must be provided");
+    }
+
+    const config: api.ApiConfig = {
+      browserbaseApiKey: args.browserbaseApiKey,
+      browserbaseProjectId: args.browserbaseProjectId,
+      modelApiKey: args.modelApiKey,
+      modelName: args.modelName,
+    };
+
+    const ownSession = !args.sessionId;
+    let sessionId = args.sessionId;
+
+    if (ownSession) {
+      const session = await api.startSession(config);
+      sessionId = session.sessionId;
+    }
+
+    try {
+      if (ownSession && args.url) {
+        await api.navigate(sessionId, args.url, config, {
+          waitUntil: args.options?.waitUntil,
+          timeout: args.options?.timeout,
+        });
+      }
+
+      const result = await api.extract(
+        sessionId,
+        args.instruction,
+        args.schema,
+        config,
+      );
+
+      if (ownSession) {
+        await api.endSession(sessionId, config);
+      }
+
+      return result.result;
+    } catch (error) {
+      if (ownSession) {
+        await api.endSession(sessionId, config);
+      }
+      throw error;
+    }
+  },
+});
+
+/**
  * Execute browser actions using natural language instructions.
- * Handles the full session lifecycle: start -> navigate -> act -> end
+ * If sessionId is provided, uses existing session (doesn't end it).
+ * Otherwise, handles full session lifecycle: start -> navigate -> act -> end
  */
 export const act = action({
   args: {
@@ -106,18 +195,13 @@ export const act = action({
     browserbaseProjectId: v.string(),
     modelApiKey: v.string(),
     modelName: v.optional(v.string()),
-    url: v.string(),
+    sessionId: v.optional(v.string()),
+    url: v.optional(v.string()),
     action: v.string(),
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
-        waitUntil: v.optional(
-          v.union(
-            v.literal("load"),
-            v.literal("domcontentloaded"),
-            v.literal("networkidle"),
-          ),
-        ),
+        waitUntil: v.optional(waitUntilValidator),
       }),
     ),
   },
@@ -127,6 +211,10 @@ export const act = action({
     actionDescription: v.string(),
   }),
   handler: async (_ctx: any, args: any) => {
+    if (!args.sessionId && !args.url) {
+      throw new Error("Either sessionId or url must be provided");
+    }
+
     const config: api.ApiConfig = {
       browserbaseApiKey: args.browserbaseApiKey,
       browserbaseProjectId: args.browserbaseProjectId,
@@ -134,17 +222,27 @@ export const act = action({
       modelName: args.modelName,
     };
 
-    const session = await api.startSession(config);
+    const ownSession = !args.sessionId;
+    let sessionId = args.sessionId;
+
+    if (ownSession) {
+      const session = await api.startSession(config);
+      sessionId = session.sessionId;
+    }
 
     try {
-      await api.navigate(session.sessionId, args.url, config, {
-        waitUntil: args.options?.waitUntil,
-        timeout: args.options?.timeout,
-      });
+      if (ownSession && args.url) {
+        await api.navigate(sessionId, args.url, config, {
+          waitUntil: args.options?.waitUntil,
+          timeout: args.options?.timeout,
+        });
+      }
 
-      const result = await api.act(session.sessionId, args.action, config);
+      const result = await api.act(sessionId, args.action, config);
 
-      await api.endSession(session.sessionId, config);
+      if (ownSession) {
+        await api.endSession(sessionId, config);
+      }
 
       return {
         success: result.result.success,
@@ -152,7 +250,9 @@ export const act = action({
         actionDescription: result.result.actionDescription,
       };
     } catch (error) {
-      await api.endSession(session.sessionId, config);
+      if (ownSession) {
+        await api.endSession(sessionId, config);
+      }
       throw error;
     }
   },
@@ -160,7 +260,8 @@ export const act = action({
 
 /**
  * Find available actions on a web page matching an instruction.
- * Handles the full session lifecycle: start -> navigate -> observe -> end
+ * If sessionId is provided, uses existing session (doesn't end it).
+ * Otherwise, handles full session lifecycle: start -> navigate -> observe -> end
  */
 export const observe = action({
   args: {
@@ -168,23 +269,22 @@ export const observe = action({
     browserbaseProjectId: v.string(),
     modelApiKey: v.string(),
     modelName: v.optional(v.string()),
-    url: v.string(),
+    sessionId: v.optional(v.string()),
+    url: v.optional(v.string()),
     instruction: v.string(),
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
-        waitUntil: v.optional(
-          v.union(
-            v.literal("load"),
-            v.literal("domcontentloaded"),
-            v.literal("networkidle"),
-          ),
-        ),
+        waitUntil: v.optional(waitUntilValidator),
       }),
     ),
   },
   returns: v.array(observedActionValidator),
   handler: async (_ctx: any, args: any) => {
+    if (!args.sessionId && !args.url) {
+      throw new Error("Either sessionId or url must be provided");
+    }
+
     const config: api.ApiConfig = {
       browserbaseApiKey: args.browserbaseApiKey,
       browserbaseProjectId: args.browserbaseProjectId,
@@ -192,21 +292,27 @@ export const observe = action({
       modelName: args.modelName,
     };
 
-    const session = await api.startSession(config);
+    const ownSession = !args.sessionId;
+    let sessionId = args.sessionId;
+
+    if (ownSession) {
+      const session = await api.startSession(config);
+      sessionId = session.sessionId;
+    }
 
     try {
-      await api.navigate(session.sessionId, args.url, config, {
-        waitUntil: args.options?.waitUntil,
-        timeout: args.options?.timeout,
-      });
+      if (ownSession && args.url) {
+        await api.navigate(sessionId, args.url, config, {
+          waitUntil: args.options?.waitUntil,
+          timeout: args.options?.timeout,
+        });
+      }
 
-      const result = await api.observe(
-        session.sessionId,
-        args.instruction,
-        config,
-      );
+      const result = await api.observe(sessionId, args.instruction, config);
 
-      await api.endSession(session.sessionId, config);
+      if (ownSession) {
+        await api.endSession(sessionId, config);
+      }
 
       return result.result.map((action) => ({
         description: action.description,
@@ -215,42 +321,50 @@ export const observe = action({
         arguments: action.arguments,
       }));
     } catch (error) {
-      await api.endSession(session.sessionId, config);
+      if (ownSession) {
+        await api.endSession(sessionId, config);
+      }
       throw error;
     }
   },
 });
 
 /**
- * Execute multi-step browser automation with a single session.
- * Steps can include: navigate, act, extract, observe
+ * Execute autonomous multi-step browser automation using an AI agent.
+ * The agent interprets the instruction and decides what actions to take.
+ * If sessionId is provided, uses existing session (doesn't end it).
+ * Otherwise, handles full session lifecycle.
  */
-export const workflow = action({
+export const agent = action({
   args: {
     browserbaseApiKey: v.string(),
     browserbaseProjectId: v.string(),
     modelApiKey: v.string(),
     modelName: v.optional(v.string()),
-    url: v.string(),
-    steps: v.array(stepValidator),
+    sessionId: v.optional(v.string()),
+    url: v.optional(v.string()),
+    instruction: v.string(),
     options: v.optional(
       v.object({
+        cua: v.optional(v.boolean()),
+        maxSteps: v.optional(v.number()),
+        systemPrompt: v.optional(v.string()),
         timeout: v.optional(v.number()),
-        waitUntil: v.optional(
-          v.union(
-            v.literal("load"),
-            v.literal("domcontentloaded"),
-            v.literal("networkidle"),
-          ),
-        ),
+        waitUntil: v.optional(waitUntilValidator),
       }),
     ),
   },
   returns: v.object({
-    results: v.array(v.any()),
-    finalResult: v.any(),
+    actions: v.array(agentActionValidator),
+    completed: v.boolean(),
+    message: v.string(),
+    success: v.boolean(),
   }),
   handler: async (_ctx: any, args: any) => {
+    if (!args.sessionId && !args.url) {
+      throw new Error("Either sessionId or url must be provided");
+    }
+
     const config: api.ApiConfig = {
       browserbaseApiKey: args.browserbaseApiKey,
       browserbaseProjectId: args.browserbaseProjectId,
@@ -258,79 +372,44 @@ export const workflow = action({
       modelName: args.modelName,
     };
 
-    const session = await api.startSession(config);
-    const results: any[] = [];
+    const ownSession = !args.sessionId;
+    let sessionId = args.sessionId;
+
+    if (ownSession) {
+      const session = await api.startSession(config);
+      sessionId = session.sessionId;
+    }
 
     try {
-      await api.navigate(session.sessionId, args.url, config, {
-        waitUntil: args.options?.waitUntil,
-        timeout: args.options?.timeout,
-      });
-
-      for (const step of args.steps) {
-        let result: any;
-
-        switch (step.type) {
-          case "navigate":
-            await api.navigate(session.sessionId, step.url, config, {
-              waitUntil: args.options?.waitUntil,
-              timeout: args.options?.timeout,
-            });
-            result = { type: "navigate", url: step.url, success: true };
-            break;
-
-          case "act":
-            const actResult = await api.act(
-              session.sessionId,
-              step.action,
-              config,
-            );
-            result = {
-              type: "act",
-              success: actResult.result.success,
-              message: actResult.result.message,
-              actionDescription: actResult.result.actionDescription,
-            };
-            break;
-
-          case "extract":
-            const extractResult = await api.extract(
-              session.sessionId,
-              step.instruction,
-              step.schema,
-              config,
-            );
-            result = { type: "extract", data: extractResult.result };
-            break;
-
-          case "observe":
-            const observeResult = await api.observe(
-              session.sessionId,
-              step.instruction,
-              config,
-            );
-            result = {
-              type: "observe",
-              actions: observeResult.result.map((a) => ({
-                description: a.description,
-                selector: a.selector,
-                method: a.method,
-              })),
-            };
-            break;
-        }
-
-        results.push(result);
+      if (ownSession && args.url) {
+        await api.navigate(sessionId, args.url, config, {
+          waitUntil: args.options?.waitUntil,
+          timeout: args.options?.timeout,
+        });
       }
 
-      await api.endSession(session.sessionId, config);
+      const result = await api.agentExecute(
+        sessionId,
+        {
+          cua: args.options?.cua,
+          systemPrompt: args.options?.systemPrompt,
+        },
+        {
+          instruction: args.instruction,
+          maxSteps: args.options?.maxSteps,
+        },
+        config,
+      );
 
-      return {
-        results,
-        finalResult: results.length > 0 ? results[results.length - 1] : null,
-      };
+      if (ownSession) {
+        await api.endSession(sessionId, config);
+      }
+
+      return result.result;
     } catch (error) {
-      await api.endSession(session.sessionId, config);
+      if (ownSession) {
+        await api.endSession(sessionId, config);
+      }
       throw error;
     }
   },

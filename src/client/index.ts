@@ -24,6 +24,20 @@ export interface StagehandConfig {
   modelName?: string;
 }
 
+export interface SessionInfo {
+  sessionId: string;
+  browserbaseSessionId?: string;
+  cdpUrl?: string;
+}
+
+export interface StartSessionOptions {
+  timeout?: number;
+  waitUntil?: "load" | "domcontentloaded" | "networkidle";
+  domSettleTimeoutMs?: number;
+  selfHeal?: boolean;
+  systemPrompt?: string;
+}
+
 export interface ExtractOptions {
   timeout?: number;
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
@@ -39,16 +53,13 @@ export interface ObserveOptions {
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
 }
 
-export interface WorkflowOptions {
+export interface AgentOptions {
+  cua?: boolean;
+  maxSteps?: number;
+  systemPrompt?: string;
   timeout?: number;
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
 }
-
-export type WorkflowStep =
-  | { type: "navigate"; url: string }
-  | { type: "act"; action: string }
-  | { type: "extract"; instruction: string; schema: z.ZodType }
-  | { type: "observe"; instruction: string };
 
 export interface ObservedAction {
   description: string;
@@ -63,9 +74,18 @@ export interface ActResult {
   actionDescription: string;
 }
 
-export interface WorkflowResult {
-  results: any[];
-  finalResult: any;
+export interface AgentAction {
+  type: string;
+  action?: string;
+  reasoning?: string;
+  timeMs?: number;
+}
+
+export interface AgentResult {
+  actions: AgentAction[];
+  completed: boolean;
+  message: string;
+  success: boolean;
 }
 
 /**
@@ -100,6 +120,63 @@ export class Stagehand {
   ) {}
 
   /**
+   * Start a new browser session.
+   * Returns session info including cdpUrl for direct Playwright/Puppeteer connection.
+   *
+   * @param ctx - Convex action context
+   * @param args - Session parameters
+   * @returns Session info with sessionId, browserbaseSessionId, and cdpUrl
+   *
+   * @example
+   * ```typescript
+   * const session = await stagehand.startSession(ctx, {
+   *   url: "https://example.com",
+   * });
+   * // Use session.sessionId with other operations
+   * // Or connect Playwright: puppeteer.connect({ browserWSEndpoint: session.cdpUrl })
+   * ```
+   */
+  async startSession(
+    ctx: ActionCtx,
+    args: {
+      url: string;
+      browserbaseSessionId?: string;
+      options?: StartSessionOptions;
+    },
+  ): Promise<SessionInfo> {
+    return ctx.runAction(this.component.lib.startSession as any, {
+      ...this.config,
+      url: args.url,
+      browserbaseSessionId: args.browserbaseSessionId,
+      options: args.options,
+    });
+  }
+
+  /**
+   * End a browser session.
+   *
+   * @param ctx - Convex action context
+   * @param args - Session to end
+   * @returns Success status
+   *
+   * @example
+   * ```typescript
+   * await stagehand.endSession(ctx, { sessionId: session.sessionId });
+   * ```
+   */
+  async endSession(
+    ctx: ActionCtx,
+    args: {
+      sessionId: string;
+    },
+  ): Promise<{ success: boolean }> {
+    return ctx.runAction(this.component.lib.endSession as any, {
+      ...this.config,
+      sessionId: args.sessionId,
+    });
+  }
+
+  /**
    * Extract structured data from a web page using AI.
    *
    * @param ctx - Convex action context
@@ -108,6 +185,7 @@ export class Stagehand {
    *
    * @example
    * ```typescript
+   * // Without session (creates and destroys its own)
    * const data = await stagehand.extract(ctx, {
    *   url: "https://news.ycombinator.com",
    *   instruction: "Extract the top 5 stories with title and score",
@@ -118,12 +196,20 @@ export class Stagehand {
    *     }))
    *   }),
    * });
+   *
+   * // With existing session (reuses session)
+   * const data = await stagehand.extract(ctx, {
+   *   sessionId: session.sessionId,
+   *   instruction: "Extract the top 5 stories",
+   *   schema: z.object({ ... }),
+   * });
    * ```
    */
   async extract<T extends z.ZodType>(
     ctx: ActionCtx,
     args: {
-      url: string;
+      sessionId?: string;
+      url?: string;
       instruction: string;
       schema: T;
       options?: ExtractOptions;
@@ -132,16 +218,14 @@ export class Stagehand {
     const jsonSchema: any = zodToJsonSchema(args.schema);
     // Remove $schema field as it's reserved in Convex
     delete jsonSchema.$schema;
-    return ctx.runAction(
-      this.component.lib.extract as any,
-      {
-        ...this.config,
-        url: args.url,
-        instruction: args.instruction,
-        schema: jsonSchema,
-        options: args.options,
-      },
-    );
+    return ctx.runAction(this.component.lib.extract as any, {
+      ...this.config,
+      sessionId: args.sessionId,
+      url: args.url,
+      instruction: args.instruction,
+      schema: jsonSchema,
+      options: args.options,
+    });
   }
 
   /**
@@ -153,29 +237,35 @@ export class Stagehand {
    *
    * @example
    * ```typescript
+   * // Without session
    * const result = await stagehand.act(ctx, {
    *   url: "https://example.com/login",
    *   action: "Click the login button",
+   * });
+   *
+   * // With existing session
+   * const result = await stagehand.act(ctx, {
+   *   sessionId: session.sessionId,
+   *   action: "Click the submit button",
    * });
    * ```
    */
   async act(
     ctx: ActionCtx,
     args: {
-      url: string;
+      sessionId?: string;
+      url?: string;
       action: string;
       options?: ActOptions;
     },
   ): Promise<ActResult> {
-    return ctx.runAction(
-      this.component.lib.act as any,
-      {
-        ...this.config,
-        url: args.url,
-        action: args.action,
-        options: args.options,
-      },
-    );
+    return ctx.runAction(this.component.lib.act as any, {
+      ...this.config,
+      sessionId: args.sessionId,
+      url: args.url,
+      action: args.action,
+      options: args.options,
+    });
   }
 
   /**
@@ -196,71 +286,62 @@ export class Stagehand {
   async observe(
     ctx: ActionCtx,
     args: {
-      url: string;
+      sessionId?: string;
+      url?: string;
       instruction: string;
       options?: ObserveOptions;
     },
   ): Promise<ObservedAction[]> {
-    return ctx.runAction(
-      this.component.lib.observe as any,
-      {
-        ...this.config,
-        url: args.url,
-        instruction: args.instruction,
-        options: args.options,
-      },
-    );
+    return ctx.runAction(this.component.lib.observe as any, {
+      ...this.config,
+      sessionId: args.sessionId,
+      url: args.url,
+      instruction: args.instruction,
+      options: args.options,
+    });
   }
 
   /**
-   * Execute a multi-step workflow with a single browser session.
+   * Execute autonomous multi-step browser automation using an AI agent.
+   * The agent interprets the instruction and decides what actions to take.
    *
    * @param ctx - Convex action context
-   * @param args - Workflow parameters
-   * @returns Results of all steps and the final result
+   * @param args - Agent parameters
+   * @returns Agent execution result with actions taken
    *
    * @example
    * ```typescript
-   * const result = await stagehand.workflow(ctx, {
+   * // Agent creates its own session
+   * const result = await stagehand.agent(ctx, {
    *   url: "https://google.com",
-   *   steps: [
-   *     { type: "act", action: "Search for 'convex database'" },
-   *     { type: "extract", instruction: "Get top 3 results", schema: z.object({...}) },
-   *   ],
+   *   instruction: "Search for 'convex database' and extract the top 3 results",
+   *   options: { maxSteps: 10 },
+   * });
+   *
+   * // Agent with existing session
+   * const result = await stagehand.agent(ctx, {
+   *   sessionId: session.sessionId,
+   *   instruction: "Fill out the form and submit",
+   *   options: { maxSteps: 5 },
    * });
    * ```
    */
-  async workflow(
+  async agent(
     ctx: ActionCtx,
     args: {
-      url: string;
-      steps: WorkflowStep[];
-      options?: WorkflowOptions;
+      sessionId?: string;
+      url?: string;
+      instruction: string;
+      options?: AgentOptions;
     },
-  ): Promise<WorkflowResult> {
-    // Convert Zod schemas in steps to JSON Schema
-    const convertedSteps = args.steps.map((step) => {
-      if (step.type === "extract") {
-        const jsonSchema: any = zodToJsonSchema(step.schema);
-        // Remove $schema field as it's reserved in Convex
-        delete jsonSchema.$schema;
-        return {
-          ...step,
-          schema: jsonSchema,
-        };
-      }
-      return step;
+  ): Promise<AgentResult> {
+    return ctx.runAction(this.component.lib.agent as any, {
+      ...this.config,
+      sessionId: args.sessionId,
+      url: args.url,
+      instruction: args.instruction,
+      options: args.options,
     });
-
-    return ctx.runAction(
-      this.component.lib.workflow as any,
-      {
-        ...this.config,
-        url: args.url,
-        steps: convertedSteps,
-        options: args.options,
-      },
-    );
   }
 }
 

@@ -1,1 +1,1 @@
-export { default } from "./src/component/convex.config.js";
+export { default } from "./dist/component/convex.config.js";

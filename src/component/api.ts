@@ -15,8 +15,16 @@ export interface ApiConfig {
 
 export interface SessionData {
   sessionId: string;
+  browserbaseSessionId?: string;
   cdpUrl?: string;
   available: boolean;
+}
+
+export interface StartSessionOptions {
+  browserbaseSessionId?: string;
+  domSettleTimeoutMs?: number;
+  selfHeal?: boolean;
+  systemPrompt?: string;
 }
 
 export interface ApiResponse<T> {
@@ -47,12 +55,19 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return json.data;
 }
 
-export async function startSession(config: ApiConfig): Promise<SessionData> {
+export async function startSession(
+  config: ApiConfig,
+  options?: StartSessionOptions,
+): Promise<SessionData> {
   const response = await fetch(`${API_BASE}/sessions/start`, {
     method: "POST",
     headers: getHeaders(config),
     body: JSON.stringify({
       modelName: config.modelName || "openai/gpt-4o",
+      browserbaseSessionId: options?.browserbaseSessionId,
+      domSettleTimeoutMs: options?.domSettleTimeoutMs,
+      selfHeal: options?.selfHeal,
+      systemPrompt: options?.systemPrompt,
     }),
   });
   return handleResponse<SessionData>(response);
@@ -173,4 +188,56 @@ export async function observe(
     }),
   });
   return handleResponse<ObserveResult>(response);
+}
+
+export interface AgentConfig {
+  cua?: boolean;
+  model?: string;
+  systemPrompt?: string;
+}
+
+export interface AgentExecuteOptions {
+  instruction: string;
+  maxSteps?: number;
+}
+
+export interface AgentAction {
+  type: string;
+  action?: string;
+  reasoning?: string;
+  timeMs?: number;
+}
+
+export interface AgentExecuteResult {
+  result: {
+    actions: AgentAction[];
+    completed: boolean;
+    message: string;
+    success: boolean;
+  };
+}
+
+export async function agentExecute(
+  sessionId: string,
+  agentConfig: AgentConfig,
+  executeOptions: AgentExecuteOptions,
+  config: ApiConfig,
+): Promise<AgentExecuteResult> {
+  const response = await fetch(
+    `${API_BASE}/sessions/${sessionId}/agent/execute`,
+    {
+      method: "POST",
+      headers: getHeaders(config),
+      body: JSON.stringify({
+        agentConfig: {
+          cua: agentConfig.cua,
+          model: agentConfig.model,
+          systemPrompt: agentConfig.systemPrompt,
+        },
+        instruction: executeOptions.instruction,
+        maxSteps: executeOptions.maxSteps,
+      }),
+    },
+  );
+  return handleResponse<AgentExecuteResult>(response);
 }
