@@ -380,7 +380,7 @@ export const continueBrowsing = action({
 
 ### AI Model
 
-By default, the component uses `openai/gpt-4o`. You can specify a different model:
+By default, the component uses `openai/gpt-4o`. You can use any model supported by the [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) that supports structured outputs:
 
 ```typescript
 const stagehand = new Stagehand(components.stagehand, {
@@ -391,11 +391,7 @@ const stagehand = new Stagehand(components.stagehand, {
 });
 ```
 
-Supported models include:
-- `openai/gpt-4o` (default)
-- `openai/gpt-4o-mini`
-- `anthropic/claude-3-5-sonnet-20241022`
-- `anthropic/claude-3-5-haiku-20241022`
+For the full list of supported models and providers, see the [Stagehand Models documentation](https://docs.stagehand.dev/configuration/models).
 
 ## Requirements
 
