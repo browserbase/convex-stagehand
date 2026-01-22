@@ -1,5 +1,5 @@
 {
-  "name": "convex-stagehand",
+  "name": "@browserbasehq/convex-stagehand",
   "version": "0.0.1",
   "description": "Convex component for AI-powered browser automation with Stagehand",
   "type": "module",
@@ -38,7 +38,10 @@
     "typecheck": "tsc --noEmit && cd example && tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run --typecheck",
-    "test:watch": "vitest --typecheck"
+    "test:watch": "vitest --typecheck",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "npm run build && changeset publish"
   },
   "keywords": [
     "convex",
@@ -55,6 +58,9 @@
     "type": "git",
     "url": "https://github.com/browserbase/convex-stagehand"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "zod-to-json-schema": "^3.23.0"
   },
@@ -63,6 +69,8 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.5.0",
+    "@changesets/cli": "^2.27.9",
     "@eslint/js": "^9.0.0",
     "@types/node": "^20.10.0",
     "chokidar-cli": "^3.0.0",
