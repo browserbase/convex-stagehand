@@ -1,6 +1,6 @@
 # Stagehand Component Example
 
-Complete example showing how to use the `@convex-dev/stagehand` component for AI-powered web scraping.
+Complete example showing how to use the `convex-stagehand` component for AI-powered web scraping.
 
 ## Prerequisites
 

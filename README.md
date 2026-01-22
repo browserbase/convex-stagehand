@@ -1,4 +1,4 @@
-# @convex-dev/stagehand
+# convex-stagehand
 
 AI-powered browser automation for Convex applications. Extract data, perform actions, and automate workflows using natural language - no Playwright knowledge required.
 
@@ -14,14 +14,8 @@ AI-powered browser automation for Convex applications. Extract data, perform act
 
 ### 1. Install the Component
 
-**From GitHub (current):**
 ```bash
 npm install github:browserbase/convex-stagehand zod
-```
-
-**From npm (when published):**
-```bash
-npm install @convex-dev/stagehand zod
 ```
 
 ### 2. Configure Convex
@@ -30,7 +24,7 @@ Add the component to your `convex/convex.config.ts`:
 
 ```typescript
 import { defineApp } from "convex/server";
-import stagehand from "@convex-dev/stagehand/convex.config";
+import stagehand from "convex-stagehand/convex.config";
 
 const app = defineApp();
 app.use(stagehand, { name: "stagehand" });
@@ -52,7 +46,7 @@ Add these to your [Convex Dashboard](https://dashboard.convex.dev) → Settings 
 
 ```typescript
 import { action } from "./_generated/server";
-import { Stagehand } from "@convex-dev/stagehand";
+import { Stagehand } from "convex-stagehand";
 import { components } from "./_generated/api";
 import { z } from "zod";
 

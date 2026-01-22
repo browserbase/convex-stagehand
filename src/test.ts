@@ -14,7 +14,7 @@ const modules = import.meta.glob("./component/**/*.ts");
  * @example
  * ```typescript
  * import { convexTest } from "convex-test";
- * import stagehandTest from "@convex-dev/stagehand/test";
+ * import stagehandTest from "convex-stagehand/test";
  *
  * test("my test", async () => {
  *   const t = convexTest(schema, modules);

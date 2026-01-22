@@ -1,5 +1,5 @@
 {
-  "name": "@convex-dev/stagehand",
+  "name": "convex-stagehand",
   "version": "0.0.1",
   "description": "Convex component for AI-powered browser automation with Stagehand",
   "type": "module",
