@@ -99,7 +99,7 @@ export interface AgentResult {
  * const stagehand = new Stagehand(components.stagehand, {
  *   browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
  *   browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
- *   modelApiKey: process.env.OPENAI_API_KEY!,
+ *   modelApiKey: process.env.MODEL_API_KEY!,
  * });
  *
  * export const scrape = action({

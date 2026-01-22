@@ -46,13 +46,14 @@ In the Convex dashboard (opens automatically), go to **Settings → Environment 
 ```
 BROWSERBASE_API_KEY=your_browserbase_api_key
 BROWSERBASE_PROJECT_ID=your_browserbase_project_id
-OPENAI_API_KEY=your_openai_api_key
+MODEL_API_KEY=your_llm_provider_api_key
 ```
 
 **Where to find these:**
 - Browserbase: Dashboard → Settings → API Keys
 - OpenAI: https://platform.openai.com/api-keys
-- Anthropic (if using Claude): https://console.anthropic.com/settings/keys
+- Anthropic: https://console.anthropic.com/settings/keys
+- Other providers: See [supported models](https://docs.stagehand.dev/configuration/models)
 
 ### 4. Run the Examples
 
@@ -146,16 +147,12 @@ By default, examples use `openai/gpt-4o`. To use a different model, edit `convex
 const stagehand = new Stagehand(components.stagehand, {
   browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
   browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
-  modelApiKey: process.env.ANTHROPIC_API_KEY!, // Change to Anthropic
+  modelApiKey: process.env.MODEL_API_KEY!, // Your LLM provider API key
   modelName: "anthropic/claude-3-5-sonnet-20241022", // Change model
 });
 ```
 
-**Supported models:**
-- `openai/gpt-4o` (default, most capable)
-- `openai/gpt-4o-mini` (faster, cheaper)
-- `anthropic/claude-3-5-sonnet-20241022` (high quality)
-- `anthropic/claude-3-5-haiku-20241022` (fastest)
+See the [Stagehand Models documentation](https://docs.stagehand.dev/configuration/models) for all supported models and providers.
 
 ## Troubleshooting
 

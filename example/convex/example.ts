@@ -13,7 +13,7 @@ import { internal } from "./_generated/api";
 const stagehand = new Stagehand(components.stagehand as unknown as ComponentApi, {
   browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
   browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
-  modelApiKey: process.env.OPENAI_API_KEY!,
+  modelApiKey: process.env.MODEL_API_KEY!,
   modelName: "openai/gpt-4o",
 });
 

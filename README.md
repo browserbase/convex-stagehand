@@ -40,7 +40,7 @@ Add these to your [Convex Dashboard](https://dashboard.convex.dev) → Settings 
 |----------|-------------|
 | `BROWSERBASE_API_KEY` | Your Browserbase API key |
 | `BROWSERBASE_PROJECT_ID` | Your Browserbase project ID |
-| `OPENAI_API_KEY` | Your OpenAI API key (or use Anthropic - see Configuration) |
+| `MODEL_API_KEY` | Your LLM provider API key (OpenAI, Anthropic, etc.) |
 
 ### 4. Use the Component
 
@@ -53,7 +53,7 @@ import { z } from "zod";
 const stagehand = new Stagehand(components.stagehand, {
   browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
   browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
-  modelApiKey: process.env.OPENAI_API_KEY!,
+  modelApiKey: process.env.MODEL_API_KEY!,
 });
 
 export const scrapeHackerNews = action({
@@ -396,7 +396,7 @@ For the full list of supported models and providers, see the [Stagehand Models d
 ## Requirements
 
 - [Browserbase](https://browserbase.com) account and API key
-- [OpenAI](https://openai.com) or [Anthropic](https://anthropic.com) API key
+- LLM provider API key (see [supported models](https://docs.stagehand.dev/configuration/models))
 - Convex 1.29.3 or later
 
 ## How It Works
