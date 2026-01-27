@@ -9,11 +9,24 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import type { z } from "zod";
 import type {
   GenericActionCtx,
+  FunctionReference,
 } from "convex/server";
 
-// Re-export component type
-export type { ComponentApi } from "../component/_generated/component.js";
-import type { ComponentApi } from "../component/_generated/component.js";
+/**
+ * Component API type for the Stagehand component.
+ * Functions are marked as "internal" because component functions
+ * are internal from the consumer's perspective.
+ */
+export type ComponentApi = {
+  lib: {
+    startSession: FunctionReference<"action", "internal">;
+    endSession: FunctionReference<"action", "internal">;
+    extract: FunctionReference<"action", "internal">;
+    act: FunctionReference<"action", "internal">;
+    observe: FunctionReference<"action", "internal">;
+    agent: FunctionReference<"action", "internal">;
+  };
+};
 
 type ActionCtx = GenericActionCtx<any>;
 

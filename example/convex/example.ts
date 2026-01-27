@@ -4,13 +4,13 @@
 
 import { action, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { Stagehand, type ComponentApi } from "convex-stagehand";
+import { Stagehand } from "convex-stagehand";
 import { components } from "./_generated/api";
 import { z } from "zod";
 import { internal } from "./_generated/api";
 
 // Initialize the Stagehand client
-const stagehand = new Stagehand(components.stagehand as unknown as ComponentApi, {
+const stagehand = new Stagehand(components.stagehand, {
   browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
   browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
   modelApiKey: process.env.MODEL_API_KEY!,
