@@ -224,7 +224,7 @@ export async function agentExecute(
   config: ApiConfig,
 ): Promise<AgentExecuteResult> {
   const response = await fetch(
-    `${API_BASE}/sessions/${sessionId}/agent/execute`,
+    `${API_BASE}/sessions/${sessionId}/agentExecute`,
     {
       method: "POST",
       headers: getHeaders(config),
