@@ -15,7 +15,7 @@ AI-powered browser automation for Convex applications. Extract data, perform act
 ### 1. Install the Component
 
 ```bash
-npm install @browserbasehq/convex-stagehand
+npm install @browserbasehq/convex-stagehand zod
 ```
 
 ### 2. Configure Convex
