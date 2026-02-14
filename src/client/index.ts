@@ -43,6 +43,68 @@ export interface SessionInfo {
   cdpUrl?: string;
 }
 
+/**
+ * Parameters for creating a Browserbase session.
+ * @see https://stagehand.stldocs.app/api/resources/sessions/methods/start
+ */
+export interface BrowserbaseSessionCreateParams {
+  projectId?: string;
+  browserSettings?: {
+    advancedStealth?: boolean;
+    blockAds?: boolean;
+    context?: {
+      id: string;
+      persist?: boolean;
+    };
+    extensionId?: string;
+    fingerprint?: {
+      browsers?: ("chrome" | "edge" | "firefox" | "safari")[];
+      devices?: ("desktop" | "mobile")[];
+      httpVersion?: "1" | "2";
+      locales?: string[];
+      operatingSystems?: (
+        | "android"
+        | "ios"
+        | "linux"
+        | "macos"
+        | "windows"
+      )[];
+      screen?: {
+        maxHeight?: number;
+        maxWidth?: number;
+        minHeight?: number;
+        minWidth?: number;
+      };
+    };
+    logSession?: boolean;
+    recordSession?: boolean;
+    solveCaptchas?: boolean;
+    viewport?: {
+      height?: number;
+      width?: number;
+    };
+  };
+  extensionId?: string;
+  keepAlive?: boolean;
+  proxies?:
+    | boolean
+    | Array<{
+        type: "browserbase" | "external";
+        domainPattern?: string;
+        geolocation?: {
+          country: string;
+          city?: string;
+          state?: string;
+        };
+        server?: string;
+        password?: string;
+        username?: string;
+      }>;
+  region?: "us-west-2" | "us-east-1" | "eu-central-1" | "ap-southeast-1";
+  timeout?: number;
+  userMetadata?: Record<string, unknown>;
+}
+
 export interface StartSessionOptions {
   timeout?: number;
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
@@ -154,6 +216,7 @@ export class Stagehand {
     args: {
       url: string;
       browserbaseSessionId?: string;
+      browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
       options?: StartSessionOptions;
     },
   ): Promise<SessionInfo> {
@@ -161,6 +224,7 @@ export class Stagehand {
       ...this.config,
       url: args.url,
       browserbaseSessionId: args.browserbaseSessionId,
+      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       options: args.options,
     });
   }
@@ -225,6 +289,7 @@ export class Stagehand {
       url?: string;
       instruction: string;
       schema: T;
+      browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
       options?: ExtractOptions;
     },
   ): Promise<z.infer<T>> {
@@ -237,6 +302,7 @@ export class Stagehand {
       url: args.url,
       instruction: args.instruction,
       schema: jsonSchema,
+      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       options: args.options,
     });
   }
@@ -269,6 +335,7 @@ export class Stagehand {
       sessionId?: string;
       url?: string;
       action: string;
+      browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
       options?: ActOptions;
     },
   ): Promise<ActResult> {
@@ -277,6 +344,7 @@ export class Stagehand {
       sessionId: args.sessionId,
       url: args.url,
       action: args.action,
+      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       options: args.options,
     });
   }
@@ -302,6 +370,7 @@ export class Stagehand {
       sessionId?: string;
       url?: string;
       instruction: string;
+      browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
       options?: ObserveOptions;
     },
   ): Promise<ObservedAction[]> {
@@ -310,6 +379,7 @@ export class Stagehand {
       sessionId: args.sessionId,
       url: args.url,
       instruction: args.instruction,
+      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       options: args.options,
     });
   }
@@ -345,6 +415,7 @@ export class Stagehand {
       sessionId?: string;
       url?: string;
       instruction: string;
+      browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
       options?: AgentOptions;
     },
   ): Promise<AgentResult> {
@@ -353,6 +424,7 @@ export class Stagehand {
       sessionId: args.sessionId,
       url: args.url,
       instruction: args.instruction,
+      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       options: args.options,
     });
   }
