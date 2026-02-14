@@ -1,5 +1,11 @@
 # @browserbasehq/convex-stagehand
 
+## 0.0.3
+
+### Patch Changes
+
+- [#9](https://github.com/browserbase/convex-stagehand/pull/9) [`32b6e70`](https://github.com/browserbase/convex-stagehand/commit/32b6e705e534984935a231857810d98e1f89f97a) Thanks [@victlue](https://github.com/victlue)! - Strictly type BrowserbaseSessionCreateParams to match the Stagehand API spec, removing index signature backdoors
+
 ## 0.0.2
 
 ### Patch Changes
