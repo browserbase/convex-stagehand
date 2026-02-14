@@ -43,6 +43,27 @@ export interface SessionInfo {
   cdpUrl?: string;
 }
 
+/**
+ * Parameters for creating a Browserbase session.
+ * Mirrors Browserbase.Sessions.SessionCreateParams.
+ * @see https://docs.browserbase.com
+ */
+export interface BrowserbaseSessionCreateParams {
+  projectId?: string;
+  browserSettings?: {
+    context?: {
+      id: string;
+      persist?: boolean;
+    };
+    [key: string]: unknown;
+  };
+  proxies?: boolean;
+  region?: string;
+  timeout?: number;
+  keepAlive?: boolean;
+  [key: string]: unknown;
+}
+
 export interface StartSessionOptions {
   timeout?: number;
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
@@ -154,6 +175,7 @@ export class Stagehand {
     args: {
       url: string;
       browserbaseSessionId?: string;
+      browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
       options?: StartSessionOptions;
     },
   ): Promise<SessionInfo> {
@@ -161,6 +183,7 @@ export class Stagehand {
       ...this.config,
       url: args.url,
       browserbaseSessionId: args.browserbaseSessionId,
+      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       options: args.options,
     });
   }
@@ -225,6 +248,7 @@ export class Stagehand {
       url?: string;
       instruction: string;
       schema: T;
+      browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
       options?: ExtractOptions;
     },
   ): Promise<z.infer<T>> {
@@ -237,6 +261,7 @@ export class Stagehand {
       url: args.url,
       instruction: args.instruction,
       schema: jsonSchema,
+      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       options: args.options,
     });
   }
@@ -269,6 +294,7 @@ export class Stagehand {
       sessionId?: string;
       url?: string;
       action: string;
+      browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
       options?: ActOptions;
     },
   ): Promise<ActResult> {
@@ -277,6 +303,7 @@ export class Stagehand {
       sessionId: args.sessionId,
       url: args.url,
       action: args.action,
+      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       options: args.options,
     });
   }
@@ -302,6 +329,7 @@ export class Stagehand {
       sessionId?: string;
       url?: string;
       instruction: string;
+      browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
       options?: ObserveOptions;
     },
   ): Promise<ObservedAction[]> {
@@ -310,6 +338,7 @@ export class Stagehand {
       sessionId: args.sessionId,
       url: args.url,
       instruction: args.instruction,
+      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       options: args.options,
     });
   }
@@ -345,6 +374,7 @@ export class Stagehand {
       sessionId?: string;
       url?: string;
       instruction: string;
+      browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
       options?: AgentOptions;
     },
   ): Promise<AgentResult> {
@@ -353,6 +383,7 @@ export class Stagehand {
       sessionId: args.sessionId,
       url: args.url,
       instruction: args.instruction,
+      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       options: args.options,
     });
   }

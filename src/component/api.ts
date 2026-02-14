@@ -22,6 +22,7 @@ export interface SessionData {
 
 export interface StartSessionOptions {
   browserbaseSessionId?: string;
+  browserbaseSessionCreateParams?: Record<string, unknown>;
   domSettleTimeoutMs?: number;
   selfHeal?: boolean;
   systemPrompt?: string;
@@ -65,6 +66,7 @@ export async function startSession(
     body: JSON.stringify({
       modelName: config.modelName || "openai/gpt-4o",
       browserbaseSessionId: options?.browserbaseSessionId,
+      browserbaseSessionCreateParams: options?.browserbaseSessionCreateParams,
       domSettleTimeoutMs: options?.domSettleTimeoutMs,
       selfHeal: options?.selfHeal,
       systemPrompt: options?.systemPrompt,

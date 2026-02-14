@@ -41,6 +41,7 @@ export const startSession = action({
     modelName: v.optional(v.string()),
     url: v.string(),
     browserbaseSessionId: v.optional(v.string()),
+    browserbaseSessionCreateParams: v.optional(v.any()),
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
@@ -66,6 +67,7 @@ export const startSession = action({
 
     const session = await api.startSession(config, {
       browserbaseSessionId: args.browserbaseSessionId,
+      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       domSettleTimeoutMs: args.options?.domSettleTimeoutMs,
       selfHeal: args.options?.selfHeal,
       systemPrompt: args.options?.systemPrompt,
@@ -127,6 +129,7 @@ export const extract = action({
     url: v.optional(v.string()),
     instruction: v.string(),
     schema: v.any(),
+    browserbaseSessionCreateParams: v.optional(v.any()),
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
@@ -151,7 +154,9 @@ export const extract = action({
     let sessionId = args.sessionId;
 
     if (ownSession) {
-      const session = await api.startSession(config);
+      const session = await api.startSession(config, {
+        browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
+      });
       sessionId = session.sessionId;
     }
 
@@ -198,6 +203,7 @@ export const act = action({
     sessionId: v.optional(v.string()),
     url: v.optional(v.string()),
     action: v.string(),
+    browserbaseSessionCreateParams: v.optional(v.any()),
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
@@ -226,7 +232,9 @@ export const act = action({
     let sessionId = args.sessionId;
 
     if (ownSession) {
-      const session = await api.startSession(config);
+      const session = await api.startSession(config, {
+        browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
+      });
       sessionId = session.sessionId;
     }
 
@@ -272,6 +280,7 @@ export const observe = action({
     sessionId: v.optional(v.string()),
     url: v.optional(v.string()),
     instruction: v.string(),
+    browserbaseSessionCreateParams: v.optional(v.any()),
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
@@ -296,7 +305,9 @@ export const observe = action({
     let sessionId = args.sessionId;
 
     if (ownSession) {
-      const session = await api.startSession(config);
+      const session = await api.startSession(config, {
+        browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
+      });
       sessionId = session.sessionId;
     }
 
@@ -344,6 +355,7 @@ export const agent = action({
     sessionId: v.optional(v.string()),
     url: v.optional(v.string()),
     instruction: v.string(),
+    browserbaseSessionCreateParams: v.optional(v.any()),
     options: v.optional(
       v.object({
         cua: v.optional(v.boolean()),
@@ -376,7 +388,9 @@ export const agent = action({
     let sessionId = args.sessionId;
 
     if (ownSession) {
-      const session = await api.startSession(config);
+      const session = await api.startSession(config, {
+        browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
+      });
       sessionId = session.sessionId;
     }
 
