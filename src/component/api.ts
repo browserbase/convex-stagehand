@@ -5,17 +5,29 @@
  * Wire format matches the OpenAPI spec defined in stagehand/packages/core/lib/v3/types/public/api.ts
  */
 
+export type BrowserbaseRegion =
+  | "us-west-2"
+  | "us-east-1"
+  | "eu-central-1"
+  | "ap-southeast-1";
+
+export interface BrowserbaseSessionCreateParams {
+  region?: BrowserbaseRegion;
+  [key: string]: unknown;
+}
+
 /** Multi-region API URL mapping (matches official SDK) */
-const REGION_API_URLS: Record<string, string> = {
+const REGION_API_URLS: Record<BrowserbaseRegion, string> = {
   "us-west-2": "https://api.stagehand.browserbase.com",
   "us-east-1": "https://api.use1.stagehand.browserbase.com",
   "eu-central-1": "https://api.euc1.stagehand.browserbase.com",
   "ap-southeast-1": "https://api.apse1.stagehand.browserbase.com",
 };
 
-function getApiBase(region?: string): string {
+export function getApiBase(region?: BrowserbaseRegion): string {
   const baseUrl =
-    (region && REGION_API_URLS[region]) || REGION_API_URLS["us-west-2"];
+    (region && REGION_API_URLS[region]) ||
+    REGION_API_URLS["us-west-2"];
   return `${baseUrl}/v1`;
 }
 
@@ -35,7 +47,7 @@ export interface SessionData {
 
 export interface StartSessionOptions {
   browserbaseSessionID?: string;
-  browserbaseSessionCreateParams?: Record<string, unknown>;
+  browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
   domSettleTimeoutMs?: number;
   selfHeal?: boolean;
   systemPrompt?: string;
@@ -76,12 +88,7 @@ export async function startSession(
   config: ApiConfig,
   options?: StartSessionOptions,
 ): Promise<SessionData> {
-  const region = (
-    options?.browserbaseSessionCreateParams as
-      | { region?: string }
-      | undefined
-  )?.region;
-
+  const region = options?.browserbaseSessionCreateParams?.region;
   const response = await fetch(
     `${getApiBase(region)}/sessions/start`,
     {
@@ -107,14 +114,19 @@ export async function startSession(
 export async function endSession(
   sessionId: string,
   config: ApiConfig,
+  region?: BrowserbaseRegion,
 ): Promise<void> {
-  try {
-    await fetch(`${getApiBase()}/sessions/${sessionId}/end`, {
-      method: "POST",
-      headers: getHeaders(config),
-    });
-  } catch {
-    // Ignore errors when ending session - best effort cleanup
+  const response = await fetch(`${getApiBase(region)}/sessions/${sessionId}/end`, {
+    method: "POST",
+    headers: getHeaders(config),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Stagehand API error (${response.status}): ${errorText}`);
+  }
+  const json = (await response.json()) as { success?: boolean };
+  if (!json.success) {
+    throw new Error("Stagehand API returned success: false");
   }
 }
 
@@ -131,9 +143,10 @@ export async function navigate(
   url: string,
   config: ApiConfig,
   options?: NavigateOptions,
+  region?: BrowserbaseRegion,
 ): Promise<void> {
   const response = await fetch(
-    `${getApiBase()}/sessions/${sessionId}/navigate`,
+    `${getApiBase(region)}/sessions/${sessionId}/navigate`,
     {
       method: "POST",
       headers: getHeaders(config),
@@ -150,14 +163,14 @@ export async function navigate(
   await handleResponse(response);
 }
 
-export interface ExtractResult<T = any> {
+export interface ExtractResult<T = unknown> {
   result: T;
   actionId?: string;
 }
 
 /** Matches ExtractOptions from the OpenAPI spec */
 export interface ExtractOperationOptions {
-  model?: any;
+  model?: unknown;
   timeout?: number;
   selector?: string;
 }
@@ -166,9 +179,10 @@ export interface ExtractOperationOptions {
 export async function extract(
   sessionId: string,
   instruction: string,
-  schema: any,
+  schema: unknown,
   config: ApiConfig,
   operationOptions?: ExtractOperationOptions,
+  region?: BrowserbaseRegion,
 ): Promise<ExtractResult> {
   const body: Record<string, unknown> = { instruction, schema };
   if (
@@ -183,7 +197,7 @@ export async function extract(
     };
   }
   const response = await fetch(
-    `${getApiBase()}/sessions/${sessionId}/extract`,
+    `${getApiBase(region)}/sessions/${sessionId}/extract`,
     {
       method: "POST",
       headers: getHeaders(config),
@@ -212,7 +226,7 @@ export interface ActResult {
 
 /** Matches ActOptions from the OpenAPI spec */
 export interface ActOperationOptions {
-  model?: any;
+  model?: unknown;
   variables?: Record<string, string>;
   timeout?: number;
 }
@@ -223,6 +237,7 @@ export async function act(
   action: string,
   config: ApiConfig,
   operationOptions?: ActOperationOptions,
+  region?: BrowserbaseRegion,
 ): Promise<ActResult> {
   const body: Record<string, unknown> = { input: action };
   if (
@@ -236,11 +251,14 @@ export async function act(
       timeout: operationOptions?.timeout,
     };
   }
-  const response = await fetch(`${getApiBase()}/sessions/${sessionId}/act`, {
-    method: "POST",
-    headers: getHeaders(config),
-    body: JSON.stringify(body),
-  });
+  const response = await fetch(
+    `${getApiBase(region)}/sessions/${sessionId}/act`,
+    {
+      method: "POST",
+      headers: getHeaders(config),
+      body: JSON.stringify(body),
+    },
+  );
   return handleResponse<ActResult>(response);
 }
 
@@ -258,7 +276,7 @@ export interface ObserveResult {
 
 /** Matches ObserveOptions from the OpenAPI spec */
 export interface ObserveOperationOptions {
-  model?: any;
+  model?: unknown;
   timeout?: number;
   selector?: string;
 }
@@ -269,6 +287,7 @@ export async function observe(
   instruction: string,
   config: ApiConfig,
   operationOptions?: ObserveOperationOptions,
+  region?: BrowserbaseRegion,
 ): Promise<ObserveResult> {
   const body: Record<string, unknown> = { instruction };
   if (
@@ -283,7 +302,7 @@ export async function observe(
     };
   }
   const response = await fetch(
-    `${getApiBase()}/sessions/${sessionId}/observe`,
+    `${getApiBase(region)}/sessions/${sessionId}/observe`,
     {
       method: "POST",
       headers: getHeaders(config),
@@ -297,9 +316,9 @@ export async function observe(
 export interface AgentConfig {
   cua?: boolean;
   mode?: "dom" | "hybrid" | "cua";
-  model?: any;
+  model?: unknown;
   systemPrompt?: string;
-  executionModel?: any;
+  executionModel?: unknown;
   provider?: "openai" | "anthropic" | "google" | "microsoft";
 }
 
@@ -351,9 +370,10 @@ export async function agentExecute(
   executeOptions: AgentExecuteOptions,
   config: ApiConfig,
   shouldCache?: boolean,
+  region?: BrowserbaseRegion,
 ): Promise<AgentExecuteResult> {
   const response = await fetch(
-    `${getApiBase()}/sessions/${sessionId}/agentExecute`,
+    `${getApiBase(region)}/sessions/${sessionId}/agentExecute`,
     {
       method: "POST",
       headers: getHeaders(config),
