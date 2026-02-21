@@ -361,6 +361,7 @@ export const endSession = action({
     browserbaseApiKey: v.string(),
     browserbaseProjectId: v.string(),
     modelApiKey: v.string(),
+    modelName: v.optional(v.string()),
     sessionId: v.string(),
   },
   returns: v.object({ success: v.boolean() }),
@@ -932,7 +933,26 @@ export const agent = action({
         });
       }
 
-      return result.result;
+      // Strip passthrough fields to match the Convex return validator.
+      // The API may return extra fields (e.g. timestamp, messages) not in the validator.
+      const r = result.result;
+      return {
+        actions: r.actions.map((a: any) => ({
+          type: a.type,
+          action: a.action,
+          reasoning: a.reasoning,
+          timeMs: a.timeMs,
+          taskCompleted: a.taskCompleted,
+          pageText: a.pageText,
+          pageUrl: a.pageUrl,
+          instruction: a.instruction,
+        })),
+        completed: r.completed,
+        message: r.message,
+        success: r.success,
+        metadata: r.metadata,
+        usage: r.usage,
+      };
     } catch (error) {
       if (ownSession) {
         await safeEndSession(ctx, {
