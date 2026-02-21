@@ -82,7 +82,7 @@ Start a new browser session. Returns session info for use with other operations.
 ```typescript
 const session = await stagehand.startSession(ctx, {
   url: "https://example.com",
-  browserbaseSessionId: "optional-existing-session-id",
+  browserbaseSessionID: "optional-existing-session-id",
   options: {
     timeout: 30000,
     waitUntil: "networkidle",
@@ -91,12 +91,12 @@ const session = await stagehand.startSession(ctx, {
     systemPrompt: "Custom system prompt for the session",
   }
 });
-// { sessionId: "...", browserbaseSessionId: "...", cdpUrl: "wss://..." }
+// { sessionId: "...", cdpUrl: "wss://..." }
 ```
 
 **Parameters:**
 - `url` - The URL to navigate to
-- `browserbaseSessionId` - Optional: Resume an existing Browserbase session
+- `browserbaseSessionID` - Optional: Resume an existing Browserbase session
 - `options.timeout` - Navigation timeout in milliseconds
 - `options.waitUntil` - When to consider navigation complete: `"load"`, `"domcontentloaded"`, or `"networkidle"`
 - `options.domSettleTimeoutMs` - Timeout for DOM to settle before considering page loaded
@@ -106,9 +106,8 @@ const session = await stagehand.startSession(ctx, {
 **Returns:**
 ```typescript
 {
-  sessionId: string;           // Use with other operations
-  browserbaseSessionId?: string; // Store to resume later
-  cdpUrl?: string;             // For advanced Playwright/Puppeteer usage
+  sessionId: string; // Use with other operations
+  cdpUrl?: string;   // For advanced Playwright/Puppeteer usage
 }
 ```
 
@@ -344,31 +343,31 @@ console.log(result.actions); // Detailed log of each action taken
 
 ### Resume session across Convex actions
 
-Store the `browserbaseSessionId` to resume sessions across different Convex action calls:
+Store the `sessionId` to continue working with the same Stagehand session across different Convex action calls:
 
 ```typescript
-// Action 1: Start session and return browserbaseSessionId
+// Action 1: Start session and return sessionId
 export const startBrowsing = action({
   handler: async (ctx) => {
     const session = await stagehand.startSession(ctx, {
       url: "https://example.com/login"
     });
-    // Store browserbaseSessionId in your database
-    return session.browserbaseSessionId;
+    // Store sessionId in your database
+    return session.sessionId;
   }
 });
 
-// Action 2: Resume session later
+// Action 2: Continue same session later
 export const continueBrowsing = action({
-  args: { browserbaseSessionId: v.string() },
+  args: { sessionId: v.string() },
   handler: async (ctx, args) => {
-    const session = await stagehand.startSession(ctx, {
-      url: "https://example.com/dashboard",
-      browserbaseSessionId: args.browserbaseSessionId,
+    await stagehand.act(ctx, {
+      sessionId: args.sessionId,
+      action: "Navigate to the dashboard page",
     });
-    // Continue using the same browser instance
+
     return await stagehand.extract(ctx, {
-      sessionId: session.sessionId,
+      sessionId: args.sessionId,
       instruction: "Extract user data",
       schema: z.object({ ... }),
     });
