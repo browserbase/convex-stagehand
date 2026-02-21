@@ -12,8 +12,9 @@ import * as api from "./api.js";
 const observedActionValidator = v.object({
   description: v.string(),
   selector: v.string(),
-  method: v.string(),
+  method: v.optional(v.string()),
   arguments: v.optional(v.array(v.string())),
+  backendNodeId: v.optional(v.number()),
 });
 
 const waitUntilValidator = v.union(
@@ -27,6 +28,10 @@ const agentActionValidator = v.object({
   action: v.optional(v.string()),
   reasoning: v.optional(v.string()),
   timeMs: v.optional(v.number()),
+  taskCompleted: v.optional(v.boolean()),
+  pageText: v.optional(v.string()),
+  pageUrl: v.optional(v.string()),
+  instruction: v.optional(v.string()),
 });
 
 /**
@@ -40,7 +45,7 @@ export const startSession = action({
     modelApiKey: v.string(),
     modelName: v.optional(v.string()),
     url: v.string(),
-    browserbaseSessionId: v.optional(v.string()),
+    browserbaseSessionID: v.optional(v.string()),
     browserbaseSessionCreateParams: v.optional(v.any()),
     options: v.optional(
       v.object({
@@ -49,12 +54,13 @@ export const startSession = action({
         domSettleTimeoutMs: v.optional(v.number()),
         selfHeal: v.optional(v.boolean()),
         systemPrompt: v.optional(v.string()),
+        verbose: v.optional(v.number()),
+        experimental: v.optional(v.boolean()),
       }),
     ),
   },
   returns: v.object({
     sessionId: v.string(),
-    browserbaseSessionId: v.optional(v.string()),
     cdpUrl: v.optional(v.string()),
   }),
   handler: async (_ctx: any, args: any) => {
@@ -66,11 +72,13 @@ export const startSession = action({
     };
 
     const session = await api.startSession(config, {
-      browserbaseSessionId: args.browserbaseSessionId,
+      browserbaseSessionID: args.browserbaseSessionID,
       browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
       domSettleTimeoutMs: args.options?.domSettleTimeoutMs,
       selfHeal: args.options?.selfHeal,
       systemPrompt: args.options?.systemPrompt,
+      verbose: args.options?.verbose,
+      experimental: args.options?.experimental,
     });
 
     try {
@@ -81,8 +89,7 @@ export const startSession = action({
 
       return {
         sessionId: session.sessionId,
-        browserbaseSessionId: session.browserbaseSessionId,
-        cdpUrl: session.cdpUrl,
+        cdpUrl: session.cdpUrl ?? undefined,
       };
     } catch (error) {
       await api.endSession(session.sessionId, config);
@@ -130,10 +137,12 @@ export const extract = action({
     instruction: v.string(),
     schema: v.any(),
     browserbaseSessionCreateParams: v.optional(v.any()),
+    model: v.optional(v.any()),
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
         waitUntil: v.optional(waitUntilValidator),
+        selector: v.optional(v.string()),
       }),
     ),
   },
@@ -173,6 +182,11 @@ export const extract = action({
         args.instruction,
         args.schema,
         config,
+        {
+          model: args.model,
+          timeout: args.options?.timeout,
+          selector: args.options?.selector,
+        },
       );
 
       if (ownSession) {
@@ -204,10 +218,12 @@ export const act = action({
     url: v.optional(v.string()),
     action: v.string(),
     browserbaseSessionCreateParams: v.optional(v.any()),
+    model: v.optional(v.any()),
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
         waitUntil: v.optional(waitUntilValidator),
+        variables: v.optional(v.any()),
       }),
     ),
   },
@@ -246,7 +262,11 @@ export const act = action({
         });
       }
 
-      const result = await api.act(sessionId, args.action, config);
+      const result = await api.act(sessionId, args.action, config, {
+        model: args.model,
+        variables: args.options?.variables,
+        timeout: args.options?.timeout,
+      });
 
       if (ownSession) {
         await api.endSession(sessionId, config);
@@ -281,10 +301,12 @@ export const observe = action({
     url: v.optional(v.string()),
     instruction: v.string(),
     browserbaseSessionCreateParams: v.optional(v.any()),
+    model: v.optional(v.any()),
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
         waitUntil: v.optional(waitUntilValidator),
+        selector: v.optional(v.string()),
       }),
     ),
   },
@@ -319,7 +341,11 @@ export const observe = action({
         });
       }
 
-      const result = await api.observe(sessionId, args.instruction, config);
+      const result = await api.observe(sessionId, args.instruction, config, {
+        model: args.model,
+        timeout: args.options?.timeout,
+        selector: args.options?.selector,
+      });
 
       if (ownSession) {
         await api.endSession(sessionId, config);
@@ -330,6 +356,7 @@ export const observe = action({
         selector: action.selector,
         method: action.method,
         arguments: action.arguments,
+        backendNodeId: action.backendNodeId,
       }));
     } catch (error) {
       if (ownSession) {
@@ -356,13 +383,19 @@ export const agent = action({
     url: v.optional(v.string()),
     instruction: v.string(),
     browserbaseSessionCreateParams: v.optional(v.any()),
+    model: v.optional(v.any()),
     options: v.optional(
       v.object({
         cua: v.optional(v.boolean()),
+        mode: v.optional(v.string()),
         maxSteps: v.optional(v.number()),
         systemPrompt: v.optional(v.string()),
         timeout: v.optional(v.number()),
         waitUntil: v.optional(waitUntilValidator),
+        executionModel: v.optional(v.any()),
+        provider: v.optional(v.string()),
+        highlightCursor: v.optional(v.boolean()),
+        shouldCache: v.optional(v.boolean()),
       }),
     ),
   },
@@ -371,6 +404,16 @@ export const agent = action({
     completed: v.boolean(),
     message: v.string(),
     success: v.boolean(),
+    metadata: v.optional(v.any()),
+    usage: v.optional(
+      v.object({
+        input_tokens: v.number(),
+        output_tokens: v.number(),
+        reasoning_tokens: v.optional(v.number()),
+        cached_input_tokens: v.optional(v.number()),
+        inference_time_ms: v.number(),
+      }),
+    ),
   }),
   handler: async (_ctx: any, args: any) => {
     if (!args.sessionId && !args.url) {
@@ -406,13 +449,19 @@ export const agent = action({
         sessionId,
         {
           cua: args.options?.cua,
+          mode: args.options?.mode,
+          model: args.model,
           systemPrompt: args.options?.systemPrompt,
+          executionModel: args.options?.executionModel,
+          provider: args.options?.provider,
         },
         {
           instruction: args.instruction,
           maxSteps: args.options?.maxSteps,
+          highlightCursor: args.options?.highlightCursor,
         },
         config,
+        args.options?.shouldCache,
       );
 
       if (ownSession) {

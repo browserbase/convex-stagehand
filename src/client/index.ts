@@ -30,16 +30,40 @@ export type ComponentApi = {
 
 type ActionCtx = GenericActionCtx<any>;
 
+/**
+ * Model configuration for custom endpoints, proxies, or alternative providers.
+ * @see https://docs.stagehand.dev/v3/references/stagehand
+ */
+export interface ModelConfig {
+  modelName?: string;
+  apiKey?: string;
+  baseURL?: string;
+  provider?: "openai" | "anthropic" | "google" | "microsoft";
+}
+
 export interface StagehandConfig {
   browserbaseApiKey: string;
   browserbaseProjectId: string;
   modelApiKey: string;
   modelName?: string;
+  /** Full model configuration with baseURL support. Overrides modelName when modelName is also set. */
+  model?: ModelConfig;
+  /** Logging verbosity level for sessions. */
+  verbose?: 0 | 1 | 2;
+  /** Enable self-healing for failed actions. */
+  selfHeal?: boolean;
+  /** Custom system prompt for AI operations. */
+  systemPrompt?: string;
+  /** Timeout in ms to wait for DOM to settle. */
+  domSettleTimeoutMs?: number;
+  /** Enable experimental features. */
+  experimental?: boolean;
+  /** Default Browserbase session creation parameters. */
+  browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
 }
 
 export interface SessionInfo {
   sessionId: string;
-  browserbaseSessionId?: string;
   cdpUrl?: string;
 }
 
@@ -111,36 +135,51 @@ export interface StartSessionOptions {
   domSettleTimeoutMs?: number;
   selfHeal?: boolean;
   systemPrompt?: string;
+  verbose?: 0 | 1 | 2;
+  experimental?: boolean;
 }
 
 export interface ExtractOptions {
   timeout?: number;
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
+  model?: string | ModelConfig;
+  selector?: string;
 }
 
 export interface ActOptions {
   timeout?: number;
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
+  model?: string | ModelConfig;
+  variables?: Record<string, string>;
 }
 
 export interface ObserveOptions {
   timeout?: number;
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
+  model?: string | ModelConfig;
+  selector?: string;
 }
 
 export interface AgentOptions {
   cua?: boolean;
+  mode?: "dom" | "hybrid" | "cua";
   maxSteps?: number;
   systemPrompt?: string;
   timeout?: number;
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
+  model?: string | ModelConfig;
+  executionModel?: string | ModelConfig;
+  provider?: "openai" | "anthropic" | "google" | "microsoft";
+  highlightCursor?: boolean;
+  shouldCache?: boolean;
 }
 
 export interface ObservedAction {
   description: string;
   selector: string;
-  method: string;
+  method?: string;
   arguments?: string[];
+  backendNodeId?: number;
 }
 
 export interface ActResult {
@@ -154,6 +193,18 @@ export interface AgentAction {
   action?: string;
   reasoning?: string;
   timeMs?: number;
+  taskCompleted?: boolean;
+  pageText?: string;
+  pageUrl?: string;
+  instruction?: string;
+}
+
+export interface AgentUsage {
+  input_tokens: number;
+  output_tokens: number;
+  reasoning_tokens?: number;
+  cached_input_tokens?: number;
+  inference_time_ms: number;
 }
 
 export interface AgentResult {
@@ -161,6 +212,8 @@ export interface AgentResult {
   completed: boolean;
   message: string;
   success: boolean;
+  metadata?: Record<string, unknown>;
+  usage?: AgentUsage;
 }
 
 /**
@@ -194,13 +247,30 @@ export class Stagehand {
     private config: StagehandConfig,
   ) {}
 
+  /** Credentials sent as action args for every API call. */
+  private get credentials() {
+    return {
+      browserbaseApiKey: this.config.browserbaseApiKey,
+      browserbaseProjectId: this.config.browserbaseProjectId,
+      modelApiKey: this.config.modelApiKey,
+      modelName: this.config.model?.modelName || this.config.modelName,
+    };
+  }
+
+  /** Resolve per-operation model: per-call override > constructor config > undefined. */
+  private resolveModel(override?: string | ModelConfig): string | ModelConfig | undefined {
+    if (override !== undefined) return override;
+    if (this.config.model) return this.config.model;
+    return undefined;
+  }
+
   /**
    * Start a new browser session.
    * Returns session info including cdpUrl for direct Playwright/Puppeteer connection.
    *
    * @param ctx - Convex action context
    * @param args - Session parameters
-   * @returns Session info with sessionId, browserbaseSessionId, and cdpUrl
+   * @returns Session info with sessionId and cdpUrl
    *
    * @example
    * ```typescript
@@ -215,17 +285,26 @@ export class Stagehand {
     ctx: ActionCtx,
     args: {
       url: string;
-      browserbaseSessionId?: string;
+      browserbaseSessionID?: string;
       browserbaseSessionCreateParams?: BrowserbaseSessionCreateParams;
       options?: StartSessionOptions;
     },
   ): Promise<SessionInfo> {
     return ctx.runAction(this.component.lib.startSession as any, {
-      ...this.config,
+      ...this.credentials,
       url: args.url,
-      browserbaseSessionId: args.browserbaseSessionId,
-      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
-      options: args.options,
+      browserbaseSessionID: args.browserbaseSessionID,
+      browserbaseSessionCreateParams:
+        args.browserbaseSessionCreateParams ??
+        this.config.browserbaseSessionCreateParams,
+      options: {
+        domSettleTimeoutMs: this.config.domSettleTimeoutMs,
+        selfHeal: this.config.selfHeal,
+        systemPrompt: this.config.systemPrompt,
+        verbose: this.config.verbose,
+        experimental: this.config.experimental,
+        ...args.options,
+      },
     });
   }
 
@@ -248,7 +327,7 @@ export class Stagehand {
     },
   ): Promise<{ success: boolean }> {
     return ctx.runAction(this.component.lib.endSession as any, {
-      ...this.config,
+      ...this.credentials,
       sessionId: args.sessionId,
     });
   }
@@ -297,13 +376,20 @@ export class Stagehand {
     // Remove $schema field as it's reserved in Convex
     delete jsonSchema.$schema;
     return ctx.runAction(this.component.lib.extract as any, {
-      ...this.config,
+      ...this.credentials,
       sessionId: args.sessionId,
       url: args.url,
       instruction: args.instruction,
       schema: jsonSchema,
-      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
-      options: args.options,
+      browserbaseSessionCreateParams:
+        args.browserbaseSessionCreateParams ??
+        this.config.browserbaseSessionCreateParams,
+      model: this.resolveModel(args.options?.model),
+      options: {
+        timeout: args.options?.timeout,
+        waitUntil: args.options?.waitUntil,
+        selector: args.options?.selector,
+      },
     });
   }
 
@@ -340,12 +426,19 @@ export class Stagehand {
     },
   ): Promise<ActResult> {
     return ctx.runAction(this.component.lib.act as any, {
-      ...this.config,
+      ...this.credentials,
       sessionId: args.sessionId,
       url: args.url,
       action: args.action,
-      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
-      options: args.options,
+      browserbaseSessionCreateParams:
+        args.browserbaseSessionCreateParams ??
+        this.config.browserbaseSessionCreateParams,
+      model: this.resolveModel(args.options?.model),
+      options: {
+        timeout: args.options?.timeout,
+        waitUntil: args.options?.waitUntil,
+        variables: args.options?.variables,
+      },
     });
   }
 
@@ -375,12 +468,19 @@ export class Stagehand {
     },
   ): Promise<ObservedAction[]> {
     return ctx.runAction(this.component.lib.observe as any, {
-      ...this.config,
+      ...this.credentials,
       sessionId: args.sessionId,
       url: args.url,
       instruction: args.instruction,
-      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
-      options: args.options,
+      browserbaseSessionCreateParams:
+        args.browserbaseSessionCreateParams ??
+        this.config.browserbaseSessionCreateParams,
+      model: this.resolveModel(args.options?.model),
+      options: {
+        timeout: args.options?.timeout,
+        waitUntil: args.options?.waitUntil,
+        selector: args.options?.selector,
+      },
     });
   }
 
@@ -420,12 +520,26 @@ export class Stagehand {
     },
   ): Promise<AgentResult> {
     return ctx.runAction(this.component.lib.agent as any, {
-      ...this.config,
+      ...this.credentials,
       sessionId: args.sessionId,
       url: args.url,
       instruction: args.instruction,
-      browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
-      options: args.options,
+      browserbaseSessionCreateParams:
+        args.browserbaseSessionCreateParams ??
+        this.config.browserbaseSessionCreateParams,
+      model: this.resolveModel(args.options?.model),
+      options: {
+        cua: args.options?.cua,
+        mode: args.options?.mode,
+        maxSteps: args.options?.maxSteps,
+        systemPrompt: args.options?.systemPrompt,
+        timeout: args.options?.timeout,
+        waitUntil: args.options?.waitUntil,
+        executionModel: args.options?.executionModel,
+        provider: args.options?.provider,
+        highlightCursor: args.options?.highlightCursor,
+        shouldCache: args.options?.shouldCache,
+      },
     });
   }
 }
