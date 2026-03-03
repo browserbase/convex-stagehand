@@ -297,6 +297,7 @@ export class Stagehand {
       browserbaseSessionCreateParams:
         args.browserbaseSessionCreateParams ??
         this.config.browserbaseSessionCreateParams,
+      model: this.resolveModel(),
       options: {
         domSettleTimeoutMs: this.config.domSettleTimeoutMs,
         selfHeal: this.config.selfHeal,
