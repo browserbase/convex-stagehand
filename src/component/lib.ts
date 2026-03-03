@@ -272,6 +272,7 @@ export const startSession = action({
     url: v.string(),
     browserbaseSessionID: v.optional(v.string()),
     browserbaseSessionCreateParams: v.optional(v.any()),
+    model: v.optional(v.any()),
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
@@ -303,6 +304,7 @@ export const startSession = action({
     const session = await api.startSession(config, {
       browserbaseSessionID: args.browserbaseSessionID,
       browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
+      model: args.model,
       domSettleTimeoutMs: args.options?.domSettleTimeoutMs,
       selfHeal: args.options?.selfHeal,
       systemPrompt: args.options?.systemPrompt,

@@ -104,6 +104,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           browserbaseApiKey: string;
           browserbaseProjectId: string;
           modelApiKey: string;
+          modelName?: string;
           sessionId: string;
         },
         { success: boolean },
@@ -168,6 +169,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           browserbaseProjectId: string;
           browserbaseSessionCreateParams?: any;
           browserbaseSessionID?: string;
+          model?: any;
           modelApiKey: string;
           modelName?: string;
           options?: {
