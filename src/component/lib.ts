@@ -59,6 +59,17 @@ const waitUntilValidator = v.union(
   v.literal("networkidle"),
 );
 
+/** Session-level config forwarded from the client's StagehandConfig for ephemeral sessions. */
+const sessionConfigValidator = v.optional(
+  v.object({
+    domSettleTimeoutMs: v.optional(v.number()),
+    selfHeal: v.optional(v.boolean()),
+    systemPrompt: v.optional(v.string()),
+    verbose: v.optional(v.number()),
+    experimental: v.optional(v.boolean()),
+  }),
+);
+
 const agentActionValidator = v.object({
   type: v.string(),
   action: v.optional(v.string()),
@@ -399,6 +410,7 @@ export const extract = action({
     schema: v.any(),
     browserbaseSessionCreateParams: v.optional(v.any()),
     model: v.optional(v.any()),
+    sessionConfig: sessionConfigValidator,
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
@@ -430,6 +442,8 @@ export const extract = action({
     if (ownSession) {
       const session = await api.startSession(config, {
         browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
+        model: args.model,
+        ...args.sessionConfig,
       });
       sessionId = session.sessionId;
       await persistSessionMetadata(ctx, {
@@ -530,6 +544,7 @@ export const act = action({
     action: v.string(),
     browserbaseSessionCreateParams: v.optional(v.any()),
     model: v.optional(v.any()),
+    sessionConfig: sessionConfigValidator,
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
@@ -565,6 +580,8 @@ export const act = action({
     if (ownSession) {
       const session = await api.startSession(config, {
         browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
+        model: args.model,
+        ...args.sessionConfig,
       });
       sessionId = session.sessionId;
       await persistSessionMetadata(ctx, {
@@ -668,6 +685,7 @@ export const observe = action({
     instruction: v.string(),
     browserbaseSessionCreateParams: v.optional(v.any()),
     model: v.optional(v.any()),
+    sessionConfig: sessionConfigValidator,
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
@@ -699,6 +717,8 @@ export const observe = action({
     if (ownSession) {
       const session = await api.startSession(config, {
         browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
+        model: args.model,
+        ...args.sessionConfig,
       });
       sessionId = session.sessionId;
       await persistSessionMetadata(ctx, {
@@ -805,6 +825,7 @@ export const agent = action({
     instruction: v.string(),
     browserbaseSessionCreateParams: v.optional(v.any()),
     model: v.optional(v.any()),
+    sessionConfig: sessionConfigValidator,
     options: v.optional(
       v.object({
         cua: v.optional(v.boolean()),
@@ -858,6 +879,8 @@ export const agent = action({
     if (ownSession) {
       const session = await api.startSession(config, {
         browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
+        model: args.model,
+        ...args.sessionConfig,
       });
       sessionId = session.sessionId;
       await persistSessionMetadata(ctx, {
@@ -953,7 +976,15 @@ export const agent = action({
         message: r.message,
         success: r.success,
         metadata: r.metadata,
-        usage: r.usage,
+        usage: r.usage
+          ? {
+              input_tokens: r.usage.input_tokens,
+              output_tokens: r.usage.output_tokens,
+              reasoning_tokens: r.usage.reasoning_tokens,
+              cached_input_tokens: r.usage.cached_input_tokens,
+              inference_time_ms: r.usage.inference_time_ms,
+            }
+          : undefined,
       };
     } catch (error) {
       if (ownSession) {

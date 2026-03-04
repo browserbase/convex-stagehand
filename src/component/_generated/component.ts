@@ -40,6 +40,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             variables?: any;
             waitUntil?: "load" | "domcontentloaded" | "networkidle";
           };
+          sessionConfig?: {
+            domSettleTimeoutMs?: number;
+            experimental?: boolean;
+            selfHeal?: boolean;
+            systemPrompt?: string;
+            verbose?: number;
+          };
           sessionId?: string;
           url?: string;
         },
@@ -68,6 +75,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             systemPrompt?: string;
             timeout?: number;
             waitUntil?: "load" | "domcontentloaded" | "networkidle";
+          };
+          sessionConfig?: {
+            domSettleTimeoutMs?: number;
+            experimental?: boolean;
+            selfHeal?: boolean;
+            systemPrompt?: string;
+            verbose?: number;
           };
           sessionId?: string;
           url?: string;
@@ -127,6 +141,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             waitUntil?: "load" | "domcontentloaded" | "networkidle";
           };
           schema: any;
+          sessionConfig?: {
+            domSettleTimeoutMs?: number;
+            experimental?: boolean;
+            selfHeal?: boolean;
+            systemPrompt?: string;
+            verbose?: number;
+          };
           sessionId?: string;
           url?: string;
         },
@@ -148,6 +169,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             selector?: string;
             timeout?: number;
             waitUntil?: "load" | "domcontentloaded" | "networkidle";
+          };
+          sessionConfig?: {
+            domSettleTimeoutMs?: number;
+            experimental?: boolean;
+            selfHeal?: boolean;
+            systemPrompt?: string;
+            verbose?: number;
           };
           sessionId?: string;
           url?: string;

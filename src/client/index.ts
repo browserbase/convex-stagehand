@@ -257,6 +257,17 @@ export class Stagehand {
     };
   }
 
+  /** Session-level config forwarded to ephemeral sessions. */
+  private get sessionConfig() {
+    return {
+      domSettleTimeoutMs: this.config.domSettleTimeoutMs,
+      selfHeal: this.config.selfHeal,
+      systemPrompt: this.config.systemPrompt,
+      verbose: this.config.verbose,
+      experimental: this.config.experimental,
+    };
+  }
+
   /** Resolve per-operation model: per-call override > constructor config > undefined. */
   private resolveModel(override?: string | ModelConfig): string | ModelConfig | undefined {
     if (override !== undefined) return override;
@@ -386,6 +397,7 @@ export class Stagehand {
         args.browserbaseSessionCreateParams ??
         this.config.browserbaseSessionCreateParams,
       model: this.resolveModel(args.options?.model),
+      sessionConfig: this.sessionConfig,
       options: {
         timeout: args.options?.timeout,
         waitUntil: args.options?.waitUntil,
@@ -435,6 +447,7 @@ export class Stagehand {
         args.browserbaseSessionCreateParams ??
         this.config.browserbaseSessionCreateParams,
       model: this.resolveModel(args.options?.model),
+      sessionConfig: this.sessionConfig,
       options: {
         timeout: args.options?.timeout,
         waitUntil: args.options?.waitUntil,
@@ -477,6 +490,7 @@ export class Stagehand {
         args.browserbaseSessionCreateParams ??
         this.config.browserbaseSessionCreateParams,
       model: this.resolveModel(args.options?.model),
+      sessionConfig: this.sessionConfig,
       options: {
         timeout: args.options?.timeout,
         waitUntil: args.options?.waitUntil,
@@ -529,6 +543,7 @@ export class Stagehand {
         args.browserbaseSessionCreateParams ??
         this.config.browserbaseSessionCreateParams,
       model: this.resolveModel(args.options?.model),
+      sessionConfig: this.sessionConfig,
       options: {
         cua: args.options?.cua,
         mode: args.options?.mode,
