@@ -267,7 +267,11 @@ async function safeEndSession(
     fallbackRegion?: api.BrowserbaseRegion;
   },
 ): Promise<void> {
-  await endSessionWithRouting(ctx, args);
+  try {
+    await endSessionWithRouting(ctx, args);
+  } catch {
+    // Swallow errors to avoid masking the original error in callers.
+  }
 }
 
 /**
