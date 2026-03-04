@@ -225,52 +225,45 @@ async function endSessionWithRouting(
     fallbackRegion?: api.BrowserbaseRegion;
   },
 ): Promise<boolean> {
-  let resolvedRegion =
-    (await resolveSessionRegion(ctx, args.sessionId, args.fallbackRegion)) ??
-    DEFAULT_BROWSERBASE_REGION;
-
   try {
-    await runWithRegionRetry(ctx, {
-      sessionId: args.sessionId,
-      initialRegion: resolvedRegion,
-      onRegionResolved: async (region) => {
-        resolvedRegion = region;
-      },
-      run: async (region) => {
-        await api.endSession(args.sessionId, args.config, region);
-      },
-    });
+    let resolvedRegion =
+      (await resolveSessionRegion(ctx, args.sessionId, args.fallbackRegion)) ??
+      DEFAULT_BROWSERBASE_REGION;
 
-    await persistSessionMetadata(ctx, {
-      sessionId: args.sessionId,
-      region: resolvedRegion,
-      status: "completed",
-      endedAt: Date.now(),
-    });
-    return true;
+    try {
+      await runWithRegionRetry(ctx, {
+        sessionId: args.sessionId,
+        initialRegion: resolvedRegion,
+        onRegionResolved: async (region) => {
+          resolvedRegion = region;
+        },
+        run: async (region) => {
+          await api.endSession(args.sessionId, args.config, region);
+        },
+      });
+
+      await persistSessionMetadata(ctx, {
+        sessionId: args.sessionId,
+        region: resolvedRegion,
+        status: "completed",
+        endedAt: Date.now(),
+      });
+      return true;
+    } catch {
+      try {
+        await persistSessionMetadata(ctx, {
+          sessionId: args.sessionId,
+          region: resolvedRegion,
+          status: "error",
+          error: "Failed to end Stagehand session",
+        });
+      } catch {
+        // Best-effort metadata persistence — don't mask the original failure.
+      }
+      return false;
+    }
   } catch {
-    await persistSessionMetadata(ctx, {
-      sessionId: args.sessionId,
-      region: resolvedRegion,
-      status: "error",
-      error: "Failed to end Stagehand session",
-    });
     return false;
-  }
-}
-
-async function safeEndSession(
-  ctx: any,
-  args: {
-    sessionId: string;
-    config: api.ApiConfig;
-    fallbackRegion?: api.BrowserbaseRegion;
-  },
-): Promise<void> {
-  try {
-    await endSessionWithRouting(ctx, args);
-  } catch {
-    // Swallow errors to avoid masking the original error in callers.
   }
 }
 
@@ -360,7 +353,7 @@ export const startSession = action({
         cdpUrl: session.cdpUrl ?? undefined,
       };
     } catch (error) {
-      await safeEndSession(ctx, {
+      await endSessionWithRouting(ctx, {
         sessionId: session.sessionId,
         config,
         fallbackRegion: resolvedRegion,
@@ -511,7 +504,7 @@ export const extract = action({
       });
 
       if (ownSession) {
-        await safeEndSession(ctx, {
+        await endSessionWithRouting(ctx, {
           sessionId,
           config,
           fallbackRegion: resolvedRegion,
@@ -521,7 +514,7 @@ export const extract = action({
       return result.result;
     } catch (error) {
       if (ownSession) {
-        await safeEndSession(ctx, {
+        await endSessionWithRouting(ctx, {
           sessionId,
           config,
           fallbackRegion: resolvedRegion,
@@ -648,7 +641,7 @@ export const act = action({
       });
 
       if (ownSession) {
-        await safeEndSession(ctx, {
+        await endSessionWithRouting(ctx, {
           sessionId,
           config,
           fallbackRegion: resolvedRegion,
@@ -662,7 +655,7 @@ export const act = action({
       };
     } catch (error) {
       if (ownSession) {
-        await safeEndSession(ctx, {
+        await endSessionWithRouting(ctx, {
           sessionId,
           config,
           fallbackRegion: resolvedRegion,
@@ -785,7 +778,7 @@ export const observe = action({
       });
 
       if (ownSession) {
-        await safeEndSession(ctx, {
+        await endSessionWithRouting(ctx, {
           sessionId,
           config,
           fallbackRegion: resolvedRegion,
@@ -801,7 +794,7 @@ export const observe = action({
       }));
     } catch (error) {
       if (ownSession) {
-        await safeEndSession(ctx, {
+        await endSessionWithRouting(ctx, {
           sessionId,
           config,
           fallbackRegion: resolvedRegion,
@@ -955,7 +948,7 @@ export const agent = action({
       });
 
       if (ownSession) {
-        await safeEndSession(ctx, {
+        await endSessionWithRouting(ctx, {
           sessionId,
           config,
           fallbackRegion: resolvedRegion,
@@ -992,7 +985,7 @@ export const agent = action({
       };
     } catch (error) {
       if (ownSession) {
-        await safeEndSession(ctx, {
+        await endSessionWithRouting(ctx, {
           sessionId,
           config,
           fallbackRegion: resolvedRegion,
