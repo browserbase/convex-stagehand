@@ -1,5 +1,15 @@
 # @browserbasehq/convex-stagehand
 
+## 0.1.0
+
+### Minor Changes
+
+- [#11](https://github.com/browserbase/convex-stagehand/pull/11) [`ae8018e`](https://github.com/browserbase/convex-stagehand/commit/ae8018ef9188fff6bc221cc538fd2b832ec59c7d) Thanks [@shrey150](https://github.com/shrey150)! - Fix region handling for Stagehand sessions by persisting session region metadata and routing follow-up API calls to the correct regional Stagehand endpoint.
+  - Store `region` on session metadata and resolve region internally for `extract`, `act`, `observe`, `agent`, and `endSession`.
+  - Retry once on region-mismatch errors by parsing the returned region and updating metadata.
+  - Keep operation request payloads aligned with Stagehand API docs (region is not sent in operation bodies).
+  - Tighten internal TypeScript typing for region-aware API routing.
+
 ## 0.0.3
 
 ### Patch Changes
