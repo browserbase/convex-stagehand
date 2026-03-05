@@ -4,6 +4,14 @@ import { v } from "convex/values";
 export default defineSchema({
   sessions: defineTable({
     sessionId: v.string(),
+    region: v.optional(
+      v.union(
+        v.literal("us-west-2"),
+        v.literal("us-east-1"),
+        v.literal("eu-central-1"),
+        v.literal("ap-southeast-1"),
+      ),
+    ),
     startedAt: v.number(),
     endedAt: v.optional(v.number()),
     status: v.union(
