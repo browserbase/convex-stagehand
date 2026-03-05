@@ -13,7 +13,6 @@ export type BrowserbaseRegion =
 
 export interface BrowserbaseSessionCreateParams {
   region?: BrowserbaseRegion;
-  [key: string]: unknown;
 }
 
 /** Multi-region API URL mapping (matches official SDK) */
@@ -334,7 +333,7 @@ export interface AgentExecuteOptions {
   highlightCursor?: boolean;
 }
 
-/** Matches AgentAction from the OpenAPI spec (with passthrough) */
+/** Matches AgentAction from the OpenAPI spec */
 export interface AgentAction {
   type: string;
   action?: string;
@@ -344,7 +343,6 @@ export interface AgentAction {
   pageText?: string;
   pageUrl?: string;
   instruction?: string;
-  [key: string]: unknown;
 }
 
 /** Matches AgentUsage from the OpenAPI spec */
