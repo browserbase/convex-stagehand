@@ -432,12 +432,12 @@ export const extract = action({
 
     const ownSession = !args.sessionId;
     let sessionId = args.sessionId;
-    let resolvedRegion = ownSession
-      ? (getRequestedRegion(args.browserbaseSessionCreateParams) ??
-        DEFAULT_BROWSERBASE_REGION)
-      : undefined;
+    let resolvedRegion: api.BrowserbaseRegion | undefined;
 
     if (ownSession) {
+      resolvedRegion =
+        getRequestedRegion(args.browserbaseSessionCreateParams) ??
+        DEFAULT_BROWSERBASE_REGION;
       const session = await api.startSession(config, {
         browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
         model: args.model,
@@ -570,12 +570,12 @@ export const act = action({
 
     const ownSession = !args.sessionId;
     let sessionId = args.sessionId;
-    let resolvedRegion = ownSession
-      ? (getRequestedRegion(args.browserbaseSessionCreateParams) ??
-        DEFAULT_BROWSERBASE_REGION)
-      : undefined;
+    let resolvedRegion: api.BrowserbaseRegion | undefined;
 
     if (ownSession) {
+      resolvedRegion =
+        getRequestedRegion(args.browserbaseSessionCreateParams) ??
+        DEFAULT_BROWSERBASE_REGION;
       const session = await api.startSession(config, {
         browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
         model: args.model,
@@ -707,12 +707,12 @@ export const observe = action({
 
     const ownSession = !args.sessionId;
     let sessionId = args.sessionId;
-    let resolvedRegion = ownSession
-      ? (getRequestedRegion(args.browserbaseSessionCreateParams) ??
-        DEFAULT_BROWSERBASE_REGION)
-      : undefined;
+    let resolvedRegion: api.BrowserbaseRegion | undefined;
 
     if (ownSession) {
+      resolvedRegion =
+        getRequestedRegion(args.browserbaseSessionCreateParams) ??
+        DEFAULT_BROWSERBASE_REGION;
       const session = await api.startSession(config, {
         browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
         model: args.model,
@@ -869,12 +869,12 @@ export const agent = action({
 
     const ownSession = !args.sessionId;
     let sessionId = args.sessionId;
-    let resolvedRegion = ownSession
-      ? (getRequestedRegion(args.browserbaseSessionCreateParams) ??
-        DEFAULT_BROWSERBASE_REGION)
-      : undefined;
+    let resolvedRegion: api.BrowserbaseRegion | undefined;
 
     if (ownSession) {
+      resolvedRegion =
+        getRequestedRegion(args.browserbaseSessionCreateParams) ??
+        DEFAULT_BROWSERBASE_REGION;
       const session = await api.startSession(config, {
         browserbaseSessionCreateParams: args.browserbaseSessionCreateParams,
         model: args.model,
