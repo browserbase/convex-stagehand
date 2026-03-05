@@ -70,6 +70,20 @@ const sessionConfigValidator = v.optional(
   }),
 );
 
+const modelValidator = v.optional(
+  v.union(
+    v.string(),
+    v.object({
+      modelName: v.optional(v.string()),
+      apiKey: v.optional(v.string()),
+      baseURL: v.optional(v.string()),
+      provider: v.optional(v.string()),
+    }),
+  ),
+);
+
+const variablesValidator = v.optional(v.record(v.string(), v.string()));
+
 const agentActionValidator = v.object({
   type: v.string(),
   action: v.optional(v.string()),
@@ -280,7 +294,7 @@ export const startSession = action({
     url: v.string(),
     browserbaseSessionID: v.optional(v.string()),
     browserbaseSessionCreateParams: v.optional(v.any()),
-    model: v.optional(v.any()),
+    model: modelValidator,
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
@@ -407,7 +421,7 @@ export const extract = action({
     instruction: v.string(),
     schema: v.any(),
     browserbaseSessionCreateParams: v.optional(v.any()),
-    model: v.optional(v.any()),
+    model: modelValidator,
     sessionConfig: sessionConfigValidator,
     options: v.optional(
       v.object({
@@ -541,13 +555,13 @@ export const act = action({
     url: v.optional(v.string()),
     action: v.string(),
     browserbaseSessionCreateParams: v.optional(v.any()),
-    model: v.optional(v.any()),
+    model: modelValidator,
     sessionConfig: sessionConfigValidator,
     options: v.optional(
       v.object({
         timeout: v.optional(v.number()),
         waitUntil: v.optional(waitUntilValidator),
-        variables: v.optional(v.any()),
+        variables: variablesValidator,
       }),
     ),
   },
@@ -682,7 +696,7 @@ export const observe = action({
     url: v.optional(v.string()),
     instruction: v.string(),
     browserbaseSessionCreateParams: v.optional(v.any()),
-    model: v.optional(v.any()),
+    model: modelValidator,
     sessionConfig: sessionConfigValidator,
     options: v.optional(
       v.object({
@@ -822,7 +836,7 @@ export const agent = action({
     url: v.optional(v.string()),
     instruction: v.string(),
     browserbaseSessionCreateParams: v.optional(v.any()),
-    model: v.optional(v.any()),
+    model: modelValidator,
     sessionConfig: sessionConfigValidator,
     options: v.optional(
       v.object({
@@ -832,7 +846,7 @@ export const agent = action({
         systemPrompt: v.optional(v.string()),
         timeout: v.optional(v.number()),
         waitUntil: v.optional(waitUntilValidator),
-        executionModel: v.optional(v.any()),
+        executionModel: modelValidator,
         provider: v.optional(v.string()),
         highlightCursor: v.optional(v.boolean()),
         shouldCache: v.optional(v.boolean()),

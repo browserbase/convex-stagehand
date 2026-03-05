@@ -10,6 +10,15 @@
 
 import type { FunctionReference } from "convex/server";
 
+type ModelConfig =
+  | string
+  | {
+      modelName?: string;
+      apiKey?: string;
+      baseURL?: string;
+      provider?: string;
+    };
+
 /**
  * A utility for referencing a Convex component's exposed API.
  *
@@ -32,12 +41,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           browserbaseApiKey: string;
           browserbaseProjectId: string;
           browserbaseSessionCreateParams?: any;
-          model?: any;
+          model?: ModelConfig;
           modelApiKey: string;
           modelName?: string;
           options?: {
             timeout?: number;
-            variables?: any;
+            variables?: Record<string, string>;
             waitUntil?: "load" | "domcontentloaded" | "networkidle";
           };
           sessionConfig?: {
@@ -61,12 +70,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           browserbaseProjectId: string;
           browserbaseSessionCreateParams?: any;
           instruction: string;
-          model?: any;
+          model?: ModelConfig;
           modelApiKey: string;
           modelName?: string;
           options?: {
             cua?: boolean;
-            executionModel?: any;
+            executionModel?: ModelConfig;
             highlightCursor?: boolean;
             maxSteps?: number;
             mode?: string;
@@ -132,7 +141,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           browserbaseProjectId: string;
           browserbaseSessionCreateParams?: any;
           instruction: string;
-          model?: any;
+          model?: ModelConfig;
           modelApiKey: string;
           modelName?: string;
           options?: {
@@ -162,7 +171,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           browserbaseProjectId: string;
           browserbaseSessionCreateParams?: any;
           instruction: string;
-          model?: any;
+          model?: ModelConfig;
           modelApiKey: string;
           modelName?: string;
           options?: {
@@ -197,7 +206,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           browserbaseProjectId: string;
           browserbaseSessionCreateParams?: any;
           browserbaseSessionID?: string;
-          model?: any;
+          model?: ModelConfig;
           modelApiKey: string;
           modelName?: string;
           options?: {
