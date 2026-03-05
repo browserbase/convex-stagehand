@@ -380,6 +380,7 @@ export const endSession = action({
       browserbaseApiKey: args.browserbaseApiKey,
       browserbaseProjectId: args.browserbaseProjectId,
       modelApiKey: args.modelApiKey,
+      modelName: args.modelName,
     };
 
     const success = await endSessionWithRouting(ctx, {

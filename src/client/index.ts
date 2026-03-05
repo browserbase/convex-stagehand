@@ -253,7 +253,7 @@ export class Stagehand {
       browserbaseApiKey: this.config.browserbaseApiKey,
       browserbaseProjectId: this.config.browserbaseProjectId,
       modelApiKey: this.config.modelApiKey,
-      modelName: this.config.model?.modelName || this.config.modelName,
+      modelName: this.config.model?.modelName ?? this.config.modelName,
     };
   }
 

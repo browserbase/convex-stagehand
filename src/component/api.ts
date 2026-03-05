@@ -126,9 +126,12 @@ export async function endSession(
     const errorText = await response.text();
     throw new Error(`Stagehand API error (${response.status}): ${errorText}`);
   }
-  const json = (await response.json()) as { success?: boolean };
-  if (!json.success) {
-    throw new Error("Stagehand API returned success: false");
+  const text = await response.text();
+  if (text) {
+    const json = JSON.parse(text) as { success?: boolean };
+    if (json.success === false) {
+      throw new Error("Stagehand API returned success: false");
+    }
   }
 }
 
