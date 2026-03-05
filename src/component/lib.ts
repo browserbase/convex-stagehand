@@ -435,7 +435,7 @@ export const extract = action({
     let resolvedRegion = ownSession
       ? (getRequestedRegion(args.browserbaseSessionCreateParams) ??
         DEFAULT_BROWSERBASE_REGION)
-      : getRequestedRegion(args.browserbaseSessionCreateParams);
+      : undefined;
 
     if (ownSession) {
       const session = await api.startSession(config, {
@@ -573,7 +573,7 @@ export const act = action({
     let resolvedRegion = ownSession
       ? (getRequestedRegion(args.browserbaseSessionCreateParams) ??
         DEFAULT_BROWSERBASE_REGION)
-      : getRequestedRegion(args.browserbaseSessionCreateParams);
+      : undefined;
 
     if (ownSession) {
       const session = await api.startSession(config, {
@@ -710,7 +710,7 @@ export const observe = action({
     let resolvedRegion = ownSession
       ? (getRequestedRegion(args.browserbaseSessionCreateParams) ??
         DEFAULT_BROWSERBASE_REGION)
-      : getRequestedRegion(args.browserbaseSessionCreateParams);
+      : undefined;
 
     if (ownSession) {
       const session = await api.startSession(config, {
@@ -872,7 +872,7 @@ export const agent = action({
     let resolvedRegion = ownSession
       ? (getRequestedRegion(args.browserbaseSessionCreateParams) ??
         DEFAULT_BROWSERBASE_REGION)
-      : getRequestedRegion(args.browserbaseSessionCreateParams);
+      : undefined;
 
     if (ownSession) {
       const session = await api.startSession(config, {
